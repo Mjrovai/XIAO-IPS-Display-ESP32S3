@@ -35,7 +35,7 @@ The measurements come from his board, through `arduino-cli` on a Mac.
 The cover illustration is not a photograph. It was generated locally on a Mac
 with [Qwen-Image-2.1](https://huggingface.co/Qwen/Qwen-Image-2.1) (Qwen team,
 Alibaba), using Qwen Image Studio, a macOS app that Marcelo Rovai built with
-Claude (Anthropic). The text printed on the boards in the illustration is
+Claude Opus 5 (Anthropic). The text printed on the boards in the illustration is
 garbled and does not match the real boards.
 
 ## The family at a glance
