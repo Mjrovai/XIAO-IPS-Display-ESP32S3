@@ -57,6 +57,13 @@ the Seeed wiki pages:
 - [1.14" getting started](https://wiki.seeedstudio.com/getting_started_1.14_inch_display_esp32s3/)
 - [0.96" getting started](https://wiki.seeedstudio.com/getting_started_0.96_inch_display_esp32s3/)
 
+The Seeed product pages have a labeled diagram of each board, which we do not
+reproduce here:
+
+- [1.47" touch display](https://www.seeedstudio.com/1-47-Inch-Touch-Display-Powered-by-XIAO-ESP32-S3-Plus-p-6996.html)
+- [1.14" display](https://www.seeedstudio.com/1-14-Inch-Display-Powered-by-XIAO-ESP32-S3-Plus-p-6991.html)
+- [0.96" display](https://www.seeedstudio.com/0-96-Inch-Display-Powered-by-XIAO-ESP32-S3-Plus-p-6993.html)
+
 ## What you need
 
 - A XIAO IPS Display (ESP32-S3) board. This draft covers the 1.47" touch version.
@@ -121,7 +128,8 @@ To compile all sketches at once:
 
 If an upload fails with "Failed to connect to ESP32-S3: No serial data
 received", put the board in bootloader mode by hand: hold **BOOT**, tap
-**RESET**, release **BOOT**, then upload again. This happened once on our
+**RESET**, release **BOOT** (the B and R marks beside the USB-C port, see
+[The back of the board](#the-back-of-the-board)), then upload again. This happened once on our
 board, right after flashing a sketch that did not use the serial port. Later
 uploads worked without it.
 
@@ -140,6 +148,30 @@ uploads worked without it.
 The display and the microSD card share SCK and MOSI. The display never reads,
 so the library creates its SPI without a MISO pin. Test 08 shows how to give
 the card a MISO without breaking the display.
+
+### The back of the board
+
+![Back of the 1.47-inch board with the antenna attached to its small connector and a microSD card in the slot; the USB-C port is at the bottom of the photo](images/board_back_antenna_microsd.jpg)
+
+What the photo shows (the board is upside down, with the USB-C port at the
+bottom):
+
+- **Antenna.** The flexible 2.4 GHz antenna plugs into the small gold connector
+  beside the module, near the "seeed studio" logo. Without it, Wi-Fi barely
+  works (see [Gotcha 3](#3-without-the-antenna-wi-fi-barely-works)).
+- **microSD slot.** At the top, with a card inserted. Part of the card sticks out
+  of the board.
+- **Battery connector.** The two-pin connector on the left, marked + and -. It
+  is empty in this photo.
+- **Power switch.** The slide switch on the right, marked ON and OFF.
+- **IMU.** The small square chip below the battery connector, with its X, Y, and
+  Z axes printed on the board.
+- **Boot and reset.** Marks labeled B and R sit on either side of the USB-C
+  port. For the manual bootloader step in the Setup section, hold the boot
+  button and tap the reset button.
+- **Pads.** Labeled I2C pads (SCL, SDA, 3V3, GND) at the top right; and, along
+  the edges, labeled pins for I2S, JTAG, and VBUS.
+- **U1 and U2.** Marks for the user buttons, at the left of the microSD slot.
 
 ### First light
 
@@ -2127,9 +2159,9 @@ The figures above come from the test sessions. These are still missing:
    text and the board is small, so it is not published.
 3. **Gamma curve 01.** The same framing as the curve 08 photo, for a
    side-by-side that shows no change between curves.
-4. **The antenna connector.** A close-up of where the antenna attaches.
-5. **Board overview.** Front and back, with USR1, USR2, the microphone, the
-    microSD slot, the power switch, and the USB-C port visible.
+
+An optional extra: the front of the board, with the display off, showing USR1, USR2, and
+the microphone. The back is already in the text.
 
 For all of them: use a plain background. The IMU landscape photo in `images/`
 shows a monitor with readable window titles behind the board, so it is not used
