@@ -2060,14 +2060,17 @@ red ratio of the camera's output (1.00 would be neutral):
 | Mac reference ramp | 0.96 |
 | Board ramp, photo 1 | 1.86 |
 | Board ramp, photo 2, other time and scene | 1.4 to 1.65, depending on where we sampled (reflections in the glass) |
+| Same photo, Mac ramp | 0.95 |
+| Same photo, board ramp (four wide bands) | 1.5 to 2.2 |
 
-So the camera rendered a neutral ramp as neutral, and the board's ramp as
-clearly blue, in both photos. This points at the panel. It is not proof: the two
-ramps were in separate photos, automatic white balance can change from scene to
-scene, we picked the sample points by hand, and the phone's processing is not
-linear. A photo with both screens in the same frame would be stronger, and so
-would a colorimeter, which would also give a number for the size of the shift.
-Repeat the comparison with the reference image and see.
+So the camera rendered the Mac's neutral ramp as neutral and the board's ramp as
+clearly blue, in separate photos and in one photo that has both screens in the
+frame (the last two rows). This points at the panel. It is still not proof: the
+board's screen is small in the same-frame photo, we picked the sample points by
+hand, and the phone's processing is not linear. That photo is not published,
+because the Mac screen behind it shows unrelated text. A colorimeter would also
+give a number for the size of the shift. Repeat the comparison with the
+reference image and see.
 
 ### 6. Serial output and startup
 
@@ -2118,9 +2121,10 @@ The figures above come from the test sessions. These are still missing:
 
 1. **Battery.** The screen with a LiPo connected, once you have one. Optionally,
    also the no-battery reading of 3.97 V.
-2. **Gray ramp and the Mac reference in one frame.** Hold the board against the Mac showing
-   `tools/gray_ramp_reference.png`, so both ramps are in the same photo. We have measured them in
-   separate photos (Gotcha 5); one frame would settle it better.
+2. **A clean photo of the board next to the Mac reference.** Show `tools/gray_ramp_reference.png` full screen on
+   the Mac (in Preview: View, then Enter Full Screen) so no other text is visible, and hold the board
+   closer so its screen is large. We measured a same-frame photo (Gotcha 5), but it shows unrelated
+   text and the board is small, so it is not published.
 3. **Gamma curve 01.** The same framing as the curve 08 photo, for a
    side-by-side that shows no change between curves.
 4. **The antenna connector.** A close-up of where the antenna attaches.
