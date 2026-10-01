@@ -936,6 +936,12 @@ The PDM filter needs about half a second to settle. The DC offset starts
 near +13000 and falls to a few hundred. **Discard the first half second** before
 measuring or recording.
 
+![Microphone test while speaking: -21 dBFS in yellow, a level bar with a white peak marker, and a scrolling history that runs from green to red](images/04_mic_speaking.jpg)
+
+*While speaking close to the board: the RMS level is -21 dBFS, the peak is -13
+dBFS, and the DC offset reads -161. The history shows the last 172 blocks
+(about 11 seconds); columns turn yellow above -40 dBFS and red above -20.*
+
 #### Sketch
 
 How it works:
@@ -2085,18 +2091,16 @@ to the originals.
 
 The figures above come from the test sessions. These are still missing:
 
-1. **Microphone.** The screen while speaking, with the bar high and the history
-   graph moving.
-2. **Buttons.** One photo with USR1 lit, and one with both lit.
-3. **Battery.** The screen with a LiPo connected, once you have one. Optionally,
+1. **Buttons.** One photo with USR1 lit, and one with both lit.
+2. **Battery.** The screen with a LiPo connected, once you have one. Optionally,
    also the no-battery reading of 3.97 V.
-4. **Gray ramp next to a neutral reference.** Photograph the ramp beside a
+3. **Gray ramp next to a neutral reference.** Photograph the ramp beside a
    screen showing a known neutral gray, in the same frame. This is the only
    way to tell whether the blue cast is the panel or the camera.
-5. **Gamma curve 01.** The same framing as the curve 08 photo, for a
+4. **Gamma curve 01.** The same framing as the curve 08 photo, for a
    side-by-side that shows no change between curves.
-6. **The antenna connector.** A close-up of where the antenna attaches.
-7. **Board overview.** Front and back, with USR1, USR2, the microphone, the
+5. **The antenna connector.** A close-up of where the antenna attaches.
+6. **Board overview.** Front and back, with USR1, USR2, the microphone, the
     microSD slot, the power switch, and the USB-C port visible.
 
 For all of them: use a plain background. The IMU landscape photo in `images/`
