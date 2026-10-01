@@ -1114,6 +1114,11 @@ planned, so we could not separate contact bounce from extra presses. The sketch
 now prints `millis()` with each event; repeat the test and check that no two
 events fall within a few milliseconds of each other.
 
+![Buttons test: on the left USR1 is held and its box is green with count x1 while USR2 stays at x0; on the right USR2 is held and its box is green with count x1](images/05_buttons_usr1_usr2.jpg)
+
+*Left: USR1 held down. Right: USR2 held down. Each button lights only its own
+box, and each press adds exactly one to its own counter.*
+
 #### Sketch
 
 How it works:
@@ -2091,16 +2096,15 @@ to the originals.
 
 The figures above come from the test sessions. These are still missing:
 
-1. **Buttons.** One photo with USR1 lit, and one with both lit.
-2. **Battery.** The screen with a LiPo connected, once you have one. Optionally,
+1. **Battery.** The screen with a LiPo connected, once you have one. Optionally,
    also the no-battery reading of 3.97 V.
-3. **Gray ramp next to a neutral reference.** Photograph the ramp beside a
+2. **Gray ramp next to a neutral reference.** Photograph the ramp beside a
    screen showing a known neutral gray, in the same frame. This is the only
    way to tell whether the blue cast is the panel or the camera.
-4. **Gamma curve 01.** The same framing as the curve 08 photo, for a
+3. **Gamma curve 01.** The same framing as the curve 08 photo, for a
    side-by-side that shows no change between curves.
-5. **The antenna connector.** A close-up of where the antenna attaches.
-6. **Board overview.** Front and back, with USR1, USR2, the microphone, the
+4. **The antenna connector.** A close-up of where the antenna attaches.
+5. **Board overview.** Front and back, with USR1, USR2, the microphone, the
     microSD slot, the power switch, and the USB-C port visible.
 
 For all of them: use a plain background. The IMU landscape photo in `images/`
