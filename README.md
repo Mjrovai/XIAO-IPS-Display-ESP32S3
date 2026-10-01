@@ -1146,10 +1146,20 @@ Shows USR1 and USR2 as boxes that light up, with press counters. Debounce is
 20 ms.
 
 **Measured:** both buttons work independently, and every `DOWN` was followed by
-a clean `UP`. Our first capture had no timestamps and more presses than we
-planned, so we could not separate contact bounce from extra presses. The sketch
-now prints `millis()` with each event; repeat the test and check that no two
-events fall within a few milliseconds of each other.
+a clean `UP`.
+
+**Contact bounce.** The debounce in this sketch hides short bounce, so we
+checked the raw signal with a separate probe, `extras/button_bounce_probe`. It
+records every edge in an interrupt with a microsecond timestamp and no
+filtering. In one 60-second capture with 12 presses per button, all 24 presses
+produced exactly one falling edge. Of the 24 releases, 23 produced exactly one
+rising edge. The other release (USR1) produced three edges: up, down 6 us later,
+and up again 108 us after that, a bounce of 114 us in total. That is about 175
+times shorter than the 20 ms debounce window. A program that counted every
+falling edge without debouncing would have counted that bounce as an extra
+press. The limits: one 60-second run, 12 presses per button, and every press was
+short (held for 79 to 256 ms). We did not capture slow or hard presses, which
+are the ones most likely to bounce.
 
 ![Buttons test: on the left USR1 is held and its box is green with count x1 while USR2 stays at x0; on the right USR2 is held and its box is green with count x1](images/05_buttons_usr1_usr2.jpg)
 
@@ -1256,6 +1266,88 @@ void loop() {
   }
   if (dirty) draw();
   delay(2);
+}
+```
+<!-- /sketch -->
+
+#### Bounce probe
+
+How it works:
+
+- Each button has an interrupt on `CHANGE` that stores `micros()` and the pin level in a small ring buffer. Nothing is filtered, so bounce is recorded.
+- `loop()` drains the buffer and prints one line per edge, with the time since the previous edge on that button.
+- No display is used, so nothing else competes for the processor.
+
+<!-- sketch: part1_bringup/extras/button_bounce_probe/button_bounce_probe.ino -->
+**Sketch:** [`part1_bringup/extras/button_bounce_probe/button_bounce_probe.ino`](https://github.com/Mjrovai/XIAO-IPS-Display-ESP32S3/blob/main/part1_bringup/extras/button_bounce_probe/button_bounce_probe.ino)
+
+```cpp
+/*
+  Extra - Button bounce probe
+  Records every raw edge on USR1 (D19) and USR2 (D15) with a microsecond
+  timestamp, with no debouncing at all, so contact bounce is visible.
+  Each press should be one falling edge (DOWN) and, on release, one rising
+  edge (UP). Extra edges close together are bounce.
+
+  Serial output, one line per edge:
+    <micros>,<button>,<DOWN|UP>,<microseconds since the previous edge on this button>
+
+  Edges are captured in interrupts, so even bounce shorter than a millisecond
+  is recorded. No display is used, so nothing else competes for time.
+*/
+
+#include <Arduino.h>
+
+static constexpr uint8_t PIN_USR1 = D19;
+static constexpr uint8_t PIN_USR2 = D15;
+
+struct Edge {
+  uint32_t t;      // micros() at the edge
+  uint8_t button;  // 1 or 2
+  uint8_t level;   // 0 = pressed (LOW), 1 = released (HIGH)
+};
+
+static constexpr size_t QSIZE = 512;
+static volatile Edge queue[QSIZE];
+static volatile uint16_t head = 0;  // written by the interrupts
+static uint16_t tail = 0;           // read by loop()
+
+// One interrupt handler per button; both just store the time and the level.
+static void IRAM_ATTR record(uint8_t button, uint8_t pin) {
+  uint16_t h = head;
+  queue[h].t = micros();
+  queue[h].button = button;
+  queue[h].level = digitalRead(pin);
+  head = (h + 1) % QSIZE;
+}
+static void IRAM_ATTR isrUsr1() { record(1, PIN_USR1); }
+static void IRAM_ATTR isrUsr2() { record(2, PIN_USR2); }
+
+void setup() {
+  Serial.begin(115200);
+  Serial.setTxTimeoutMs(0);
+  delay(1500);
+  pinMode(PIN_USR1, INPUT_PULLUP);
+  pinMode(PIN_USR2, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PIN_USR1), isrUsr1, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(PIN_USR2), isrUsr2, CHANGE);
+  Serial.println("micros,button,edge,us_since_previous_edge");
+}
+
+void loop() {
+  static uint32_t last[3] = {0, 0, 0};
+  while (tail != head) {
+    Edge e;
+    e.t = queue[tail].t;
+    e.button = queue[tail].button;
+    e.level = queue[tail].level;
+    tail = (tail + 1) % QSIZE;
+    uint32_t dt = last[e.button] ? e.t - last[e.button] : 0;
+    last[e.button] = e.t;
+    Serial.printf("%lu,USR%u,%s,%lu\n", (unsigned long)e.t, e.button,
+                  e.level ? "UP" : "DOWN", (unsigned long)dt);
+  }
+  delay(1);
 }
 ```
 <!-- /sketch -->
@@ -2136,7 +2228,7 @@ reference image and see.
 | 02 Touch | Pass |
 | 03 IMU | Pass (LSM6DS3TR-C) |
 | 04 Microphone | Pass |
-| 05 Buttons | Pass (debounce timing to be rechecked) |
+| 05 Buttons | Pass (bounce measured: at most 114 us in 24 presses and 24 releases) |
 | 06 Battery | **Not validated**: needs a connected LiPo |
 | 07 Wi-Fi scan | Pass, with the antenna attached |
 | 08 microSD | Pass, with a FAT card and the shared-SPI fix |
@@ -2187,6 +2279,7 @@ images/               photos from the test sessions (metadata removed)
 part1_bringup/        one folder per test (00 to 09), plus extras/
   extras/gfx_bench    times individual drawing operations
   extras/sd_spi_probe the small probe used to debug the SD mount
+  extras/button_bounce_probe  records raw button edges with microsecond timestamps
 tools/
   seeed_gfx2_speedup.patch
   make_fast_lib.sh    builds libs/Seeed_GFX2_fast from your installed library
