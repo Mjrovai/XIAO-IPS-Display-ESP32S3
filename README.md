@@ -283,7 +283,9 @@ then steps through the four rotations.
 edges, and the markers land in the right corners in every rotation. The screen
 is 172 x 320 (rotations 0 and 2) or 320 x 172 (rotations 1 and 3).
 
-![Display test in landscape, rotation 3](images/01_display_rot3_landscape_a.jpg)
+![The display test in all four rotations: 0 and 2 are portrait, 1 and 3 are landscape. Left to right, top to bottom: rotation 0, 1, 2, 3](images/01_display_four_rotations.jpg)
+
+*Rotations 0, 1, 2, and 3, left to right and top to bottom. In every one, the bars run red, green, blue, white, the yellow marker is at the logical top left, and the cyan marker is at the logical bottom right.*
 
 
 One lesson from this sketch: at text size 2 the font is 12 pixels wide, so only
@@ -2083,19 +2085,18 @@ to the originals.
 
 The figures above come from the test sessions. These are still missing:
 
-1. **Display test, fixed version.** Rotation 0, to replace the wrap-bug photo.
-2. **Microphone.** The screen while speaking, with the bar high and the history
+1. **Microphone.** The screen while speaking, with the bar high and the history
    graph moving.
-3. **Buttons.** One photo with USR1 lit, and one with both lit.
-4. **Battery.** The screen with a LiPo connected, once you have one. Optionally,
+2. **Buttons.** One photo with USR1 lit, and one with both lit.
+3. **Battery.** The screen with a LiPo connected, once you have one. Optionally,
    also the no-battery reading of 3.97 V.
-5. **Gray ramp next to a neutral reference.** Photograph the ramp beside a
+4. **Gray ramp next to a neutral reference.** Photograph the ramp beside a
    screen showing a known neutral gray, in the same frame. This is the only
    way to tell whether the blue cast is the panel or the camera.
-6. **Gamma curve 01.** The same framing as the curve 08 photo, for a
+5. **Gamma curve 01.** The same framing as the curve 08 photo, for a
    side-by-side that shows no change between curves.
-7. **The antenna connector.** A close-up of where the antenna attaches.
-8. **Board overview.** Front and back, with USR1, USR2, the microphone, the
+6. **The antenna connector.** A close-up of where the antenna attaches.
+7. **Board overview.** Front and back, with USR1, USR2, the microphone, the
     microSD slot, the power switch, and the USB-C port visible.
 
 For all of them: use a plain background. The IMU landscape photo in `images/`
