@@ -2047,7 +2047,27 @@ What the JD9853 datasheet (Preliminary V0.00) suggests: the gamma registers
 feed the red, green, and blue converters together, so gamma adjustment cannot
 correct a difference between channels. Our best guess is that the cast is
 optical (a cool-white backlight), which is common on IPS panels. We have not
-confirmed that, and our evidence is photographs taken in a warm-lit room.
+confirmed that cause.
+
+**Is it the panel or the camera?** To check, we photographed the same kind of
+ramp on a Mac screen (`tools/gray_ramp_reference.png`, the same eight levels,
+True Tone and Night Shift off) with the same phone, in the same room. We
+sampled the middle of each step from levels 72 to 255 and averaged the blue to
+red ratio of the camera's output (1.00 would be neutral):
+
+| Photo | Blue / red |
+|---|---|
+| Mac reference ramp | 0.96 |
+| Board ramp, photo 1 | 1.86 |
+| Board ramp, photo 2, other time and scene | 1.4 to 1.65, depending on where we sampled (reflections in the glass) |
+
+So the camera rendered a neutral ramp as neutral, and the board's ramp as
+clearly blue, in both photos. This points at the panel. It is not proof: the two
+ramps were in separate photos, automatic white balance can change from scene to
+scene, we picked the sample points by hand, and the phone's processing is not
+linear. A photo with both screens in the same frame would be stronger, and so
+would a colorimeter, which would also give a number for the size of the shift.
+Repeat the comparison with the reference image and see.
 
 ### 6. Serial output and startup
 
@@ -2098,9 +2118,9 @@ The figures above come from the test sessions. These are still missing:
 
 1. **Battery.** The screen with a LiPo connected, once you have one. Optionally,
    also the no-battery reading of 3.97 V.
-2. **Gray ramp next to a neutral reference.** Photograph the ramp beside a
-   screen showing a known neutral gray, in the same frame. This is the only
-   way to tell whether the blue cast is the panel or the camera.
+2. **Gray ramp and the Mac reference in one frame.** Hold the board against the Mac showing
+   `tools/gray_ramp_reference.png`, so both ramps are in the same photo. We have measured them in
+   separate photos (Gotcha 5); one frame would settle it better.
 3. **Gamma curve 01.** The same framing as the curve 08 photo, for a
    side-by-side that shows no change between curves.
 4. **The antenna connector.** A close-up of where the antenna attaches.
@@ -2126,5 +2146,6 @@ tools/
   build_all.sh        compiles every sketch
   serial_read.py      prints a serial port for N seconds (standard library only)
   update_listings.py  refreshes the code listings in this README from the sketches
+  gray_ramp_reference.png  the same eight gray levels, to open on a Mac for the color comparison
 xiao_esp32s3_147_hello/   the first "Hello, XIAO" sketch
 ```
