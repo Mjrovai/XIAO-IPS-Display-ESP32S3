@@ -423,7 +423,12 @@ These two investigate the color cast described in
 
 ![Gray ramp: eight steps from black to white, all with a bluish tint](images/01b_gray_ramp.jpg)
 
-![Gamma curve 08 selected; the grays look the same as in the ramp above](images/01c_gamma_curve_08.jpg)
+![The gray ramp with GAMSET gamma curves 01, 02, 04, and 08 selected, left to right and top to bottom; the grays look alike in all four](images/01c_gamma_four_curves.jpg)
+
+*Gamma curves 01, 02, 04, and 08, left to right and top to bottom, under the same
+conditions. The bluish tint is the same in all four. Differences in brightness
+between the photos come from the camera's automatic exposure; the blue blotches
+in the third photo are glare and moire.*
 
 #### Sketches
 
@@ -2073,7 +2078,15 @@ clearly in the middle steps. The named constants (`TFT_DARKGREY` is
 constants are not the cause. The red, green, and blue primaries look correct.
 
 What we tried: the standard `GAMSET` command (0x26) with all four gamma curves.
-It was accepted, and the screen did not change.
+The command was accepted, and the screen did not visibly change. To check that
+by numbers, we photographed the ramp under the same conditions with each curve
+selected and measured the brightness of each step relative to the white step.
+At the mid-tone step (level 109) it was 0.33, 0.28, 0.36, and 0.33 for curves 01,
+02, 04, and 08; at level 182 it was 0.55, 0.51, 0.56, and 0.52. The differences
+follow no order and are within what the camera's automatic exposure, the viewing
+angle, and glare produce between photos. The mean blue to red ratio over levels
+72 to 255 was 2.4 to 2.6 for all four curves. (These blue to red values are not
+comparable with the table below: the method and the exposure differ.)
 
 What the JD9853 datasheet (Preliminary V0.00) suggests: the gamma registers
 feed the red, green, and blue converters together, so gamma adjustment cannot
@@ -2157,8 +2170,6 @@ The figures above come from the test sessions. These are still missing:
    the Mac (in Preview: View, then Enter Full Screen) so no other text is visible, and hold the board
    closer so its screen is large. We measured a same-frame photo (Gotcha 5), but it shows unrelated
    text and the board is small, so it is not published.
-3. **Gamma curve 01.** The same framing as the curve 08 photo, for a
-   side-by-side that shows no change between curves.
 
 An optional extra: the front of the board, with the display off, showing USR1, USR2, and
 the microphone. The back is already in the text.
