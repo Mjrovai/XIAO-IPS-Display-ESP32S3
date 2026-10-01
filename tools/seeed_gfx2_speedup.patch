@@ -1,0 +1,88 @@
+diff -ruN a/Seeed_GFX2 b/Seeed_GFX2
+--- a/Seeed_GFX2/src/Seeed_GFX.cpp
++++ b/Seeed_GFX2/src/Seeed_GFX.cpp
+@@ -1801,6 +1801,16 @@
+ }
+ void Seeed_GFX::pushImage(int32_t x, int32_t y, int32_t w, int32_t h, const uint16_t* data) {
+     if (!data || !_panel || w <= 0 || h <= 0) return;
++    if (!_swapBytes) {
++        // Fast path: image fully inside the clip area -> one window, one bulk write.
++        int32_t fx = x, fy = y, fw = w, fh = h;
++        if (clipAddrWindow(&fx, &fy, &fw, &fh) && fx == x + _xDatum &&
++            fy == y + _yDatum && fw == w && fh == h) {
++            _panel->setAddrWindow(fx, fy, fx + fw - 1, fy + fh - 1);
++            _panel->writePixels(data, static_cast<size_t>(w) * h);
++            return;
++        }
++    }
+     for (int32_t row = 0; row < h; ++row) {
+         int32_t rx = x, ry = y + row, rw = w, rh = 1;
+         if (!clipAddrWindow(&rx, &ry, &rw, &rh)) continue;
+diff -ruN a/Seeed_GFX2 b/Seeed_GFX2
+--- a/Seeed_GFX2/src/bus/Bus_SPI.cpp
++++ b/Seeed_GFX2/src/bus/Bus_SPI.cpp
+@@ -171,6 +171,9 @@
+         data += pixelsThisBlock;
+         len -= pixelsThisBlock;
+     }
++#elif defined(ARDUINO_ARCH_ESP32)
++    // Bulk write: ESP32 SPIClass swaps bytes per 16-bit word (MSB first).
++    _spi->writePixels(data, len * 2);
+ #else
+     for (size_t i = 0; i < len; ++i) SEEED_SPI_WRITE16(_spi, data[i]);
+ #endif
+@@ -197,6 +200,9 @@
+         _spi->transfer(_nrfTxScratch, nullptr, pixelsThisBlock * 2);
+         len -= pixelsThisBlock;
+     }
++#elif defined(ARDUINO_ARCH_ESP32)
++    const uint8_t pattern[2] = {hi, lo};
++    _spi->writePattern(pattern, 2, (uint32_t)len);
+ #else
+     for (size_t i = 0; i < len; i++) {
+         SEEED_SPI_WRITE_BYTE(_spi, hi);
+diff -ruN a/Seeed_GFX2 b/Seeed_GFX2
+--- a/Seeed_GFX2/src/core/Sprite.cpp
++++ b/Seeed_GFX2/src/core/Sprite.cpp
+@@ -281,7 +281,22 @@
+ }
+ void Seeed_Sprite::drawLine(int32_t x0,int32_t y0,int32_t x1,int32_t y1,uint32_t c) { int32_t dx=abs(x1-x0),sx=x0<x1?1:-1,dy=-abs(y1-y0),sy=y0<y1?1:-1,err=dx+dy; while(true){drawPixel(x0,y0,c);if(x0==x1&&y0==y1)break;int32_t e=2*err;if(e>=dy){err+=dy;x0+=sx;}if(e<=dx){err+=dx;y0+=sy;}} }
+ void Seeed_Sprite::drawFastVLine(int32_t x,int32_t y,int32_t h,uint32_t c){while(h-->0)drawPixel(x,y++,c);}
+-void Seeed_Sprite::drawFastHLine(int32_t x,int32_t y,int32_t w,uint32_t c){while(w-->0)drawPixel(x++,y,c);}
++void Seeed_Sprite::drawFastHLine(int32_t x,int32_t y,int32_t w,uint32_t c){
++    // Fast path: 16-bit, unrotated sprite. Clip once, then fill the row directly.
++    if(_bpp==16&&created()&&(_rotation&3)==0&&!_vpOoB){
++        x+=_xDatum;y+=_yDatum;
++        if(w<=0||y<_vpY||y>=_vpH||y<0||y>=_iheight)return;
++        int32_t x1=x+w;
++        if(x<_vpX)x=_vpX; if(x<0)x=0;
++        if(x1>_vpW)x1=_vpW; if(x1>_iwidth)x1=_iwidth;
++        if(x1<=x)return;
++        uint16_t* row=reinterpret_cast<uint16_t*>(activeData())+static_cast<size_t>(y)*_iwidth;
++        const uint16_t v=static_cast<uint16_t>(c);
++        for(int32_t i=x;i<x1;++i)row[i]=v;
++        return;
++    }
++    while(w-->0)drawPixel(x++,y,c);
++}
+ void Seeed_Sprite::drawRect(int32_t x,int32_t y,int32_t w,int32_t h,uint32_t c){if(w<=0||h<=0)return;drawFastHLine(x,y,w,c);drawFastHLine(x,y+h-1,w,c);drawFastVLine(x,y,h,c);drawFastVLine(x+w-1,y,h,c);}
+ void Seeed_Sprite::fillRect(int32_t x,int32_t y,int32_t w,int32_t h,uint32_t c){for(int32_t yy=0;yy<h;++yy)drawFastHLine(x,y+yy,w,c);}
+ void Seeed_Sprite::fillScreen(uint32_t c){fillRect(0,0,width(),height(),c);}
+@@ -654,9 +669,14 @@
+     _gfx->setSwapBytes(false);
+     if (_bpp == 16 && _rotation == 0) {
+         const uint16_t* pixels = reinterpret_cast<const uint16_t*>(activeData());
+-        for (int32_t yy = 0; yy < sh; ++yy)
+-            _gfx->pushImage(tx, ty + yy, sw, 1,
+-                            pixels + static_cast<size_t>(sy + yy) * _iwidth + sx);
++        if (sx == 0 && sw == _iwidth) {
++            // Rows are contiguous: one window, one bulk transfer.
++            _gfx->pushImage(tx, ty, sw, sh, pixels + static_cast<size_t>(sy) * _iwidth);
++        } else {
++            for (int32_t yy = 0; yy < sh; ++yy)
++                _gfx->pushImage(tx, ty + yy, sw, 1,
++                                pixels + static_cast<size_t>(sy + yy) * _iwidth + sx);
++        }
+     } else {
+         uint16_t row[64];
+         for (int32_t yy = 0; yy < sh; ++yy) {
