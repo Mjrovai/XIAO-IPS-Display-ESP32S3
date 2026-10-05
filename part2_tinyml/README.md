@@ -911,9 +911,9 @@ exactly 1.00 s, and not empty. We reviewed them with `tools/kws_clip_review.py`.
   clip (`yes.own.022` is at -62 dBFS). The review looks only at the signal. It
   cannot tell whether the word you said is the word in the label, so listen to
   these before you upload them.
-- **The noise class is quiet and short.** Its median is -65 dBFS, against -27 for
-  the dataset's noise clips, and there are only 16 of them. More noise recorded
-  in the room where the board will be used would help.
+- **The noise class was quiet and short.** The first 16 clips had a median of -65
+  dBFS, against -27 for the dataset's noise clips. A second session added 50
+  clips (see below).
 
 #### How it works
 
@@ -1389,6 +1389,36 @@ void loop() {
 ```
 <!-- /sketch -->
 
+**A second session of noise.** After the fix, the recorder saved 50 more NOISE
+clips into `/noise/` in one go. They are byte for byte identical to what was on
+the card, all 16 kHz, 16-bit, mono, exactly 1.00 s, none clipped, and the review
+flagged none. Their median level is -55.7 dBFS (10th to 90th percentile: -64.3 to
+-42.1), still about 28 dB below the dataset's noise clips, with a few louder
+events in the room. Together with the first 16 that makes 66 noise clips.
+
+#### Preparing the upload
+
+`tools/kws_prepare_upload.py` gathers the sessions into one folder, never moving
+the originals. The recorder numbers its clips from 001 in every session, so when
+two sessions use the same name, the later one gets its folder name in the file
+name (`noise.own2.001.wav`); the part before the first dot is still the label, which
+is how the Studio infers it. It sets aside the clips you want to listen to first
+and splits the rest at random, about two thirds for training and one third for
+testing:
+
+| Class | Train | Test | Review first | Total |
+|---|---|---|---|---|
+| yes | 30 | 15 | 5 | 50 |
+| no | 33 | 16 | 1 | 50 |
+| unknown | 31 | 15 | 4 | 50 |
+| noise | 44 | 22 | 0 | 66 |
+
+The ten clips in *Review first* are the ones the review flagged. They are kept out
+of the test set so that doubtful clips do not distort the measurement. The split
+is random with a fixed seed, so it is repeatable, but it is not stratified by
+anything else, and with 15 or 16 test clips per word a single mistake moves the
+accuracy by about 6 points. Treat the result as a rough indication.
+
 ### A limit we hit: the root folder of a small FAT16 card
 
 ![The recorder showing WRITE FAILED while the NOISE class stands at 16 clips](images/kws_recorder_write_failed.jpg)
@@ -1429,8 +1459,10 @@ recording session with the fixed sketches yet.
 1. Upload the four dataset folders to a new Edge Impulse project, with *Data acquisition,
    Upload existing data*, inferring the label from the file name and letting the
    Studio split training and test data (as in the book).
-   Add your own clips from test 03 in the same way, sending about a third of them
-   to the *Testing* category.
+   Then upload your own clips prepared by `tools/kws_prepare_upload.py`: the
+   `train/` folders to the *Training* category and the `test/` folders to the
+   *Testing* category. Listen to the `review/` clips first and decide which, if
+   any, to add.
 2. Build the impulse with the book's settings: 1-second windows, MFCC features, and a small 1D convolutional
    network (two Conv1D and pooling blocks with 8 and 16 filters, dropout 0.25,
    learning rate 0.005, 100 epochs, noise augmentation).
