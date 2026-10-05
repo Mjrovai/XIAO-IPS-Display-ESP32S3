@@ -531,20 +531,46 @@ done by hand in the Studio, not by the sketches.
 
 ## Keyword spotting
 
-**Status:** the audio front end is written and tested on the board. The dataset
-and the model are not done yet.
+**Status:** the audio front end is written and tested on the board, and the
+dataset is downloaded and checked. Training in the Edge Impulse Studio and the
+model are not done yet.
 
 The book uses four classes, **yes**, **no**, **noise**, and **unknown**, from the
 Edge Impulse keyword-spotting pre-built dataset (derived from Pete Warden's
 Speech Commands), 1-second clips at 16 kHz and 16 bits. Its model uses MFCC
 features and a small 1D convolutional network.
 
-**A finding about the local copies.** The two copies of this dataset in the
-author's Dropbox (`XIAOML-Kit/keywords` and `2021/.../keywords2`) have the right
-folders and file names, but **every one of the 6,036 files is empty (0 bytes)**.
-They cannot be used. The original archive,
-`https://cdn.edgeimpulse.com/datasets/keywords2.zip`, is about 145.5 MB and has
-to be downloaded again.
+**The dataset.** The two copies of this dataset in the author's Dropbox
+(`XIAOML-Kit/keywords` and `2021/.../keywords2`) had the right folders and file
+names, but every one of the 6,036 files was empty (0 bytes), so we downloaded the
+original archive again from `https://cdn.edgeimpulse.com/datasets/keywords2.zip`.
+It is 145,511,868 bytes, with SHA-256
+`ab2375ceb0e5add85e47419bd2edf2b8d4378fc5513079044eef73850a39a918`. We keep it
+outside the repository and outside Dropbox, in `~/datasets/edge-impulse/`.
+
+`tools/kws_dataset_check.py` checks it. Result: the zip is intact, and there are
+6,036 files, none empty or unreadable: **yes 1,500, no 1,500, unknown 1,500, and
+noise 1,536**. Every file is 16 kHz, 16-bit, mono, and exactly 1.00 s, which is
+the format the book needs. The level of a random sample of 300 files per class,
+as RMS in dBFS over each 1-second clip:
+
+| Class | 10th percentile | Median | 90th percentile | Clipped files (of 300) |
+|---|---|---|---|---|
+| yes | -35.9 | -25.2 | -18.6 | 16 |
+| no | -33.3 | -24.4 | -18.0 | 9 |
+| unknown | -35.1 | -24.3 | -17.1 | 14 |
+| noise | -37.3 | -27.4 | -15.4 | 9 |
+
+**A risk to check.** These clips are fairly loud. Our microphone measured lower
+levels for speech in Part 1, test 04, but that was the RMS of 64 ms blocks, which
+is not the same measurement as the RMS of a whole 1-second clip, so the two are
+not directly comparable. Whether speech picked up by this board is quieter than
+the training data, and whether that hurts the model, is something to measure once
+there is a model and recordings from the board.
+
+The files are derived from Pete Warden's Speech Commands dataset
+([arXiv:1804.03209](https://arxiv.org/abs/1804.03209)). They are not in this
+repository; check the dataset's license before you share them.
 
 ### Test 02: audio front end (no model yet)
 
@@ -785,9 +811,10 @@ void loop() {
 
 ### Next steps for keyword spotting
 
-1. Download the dataset again (needs the author's go-ahead).
-2. Upload it to a new Edge Impulse project, and build the impulse with the book's
-   settings: 1-second windows, MFCC features, and a small 1D convolutional
+1. Upload the four folders to a new Edge Impulse project, with *Data acquisition,
+   Upload existing data*, inferring the label from the file name and letting the
+   Studio split training and test data (as in the book).
+2. Build the impulse with the book's settings: 1-second windows, MFCC features, and a small 1D convolutional
    network (two Conv1D and pooling blocks with 8 and 16 filters, dropout 0.25,
    learning rate 0.005, 100 epochs, noise augmentation).
 3. Test, then deploy as an Arduino library (quantized, int8).
