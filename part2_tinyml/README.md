@@ -9,8 +9,9 @@ these boards have no camera.
 
 **Status: in progress.** Keyword spotting: a model was trained in the Edge Impulse
 Studio and runs on the board, it classifies recorded clips correctly there, and a first
-live test with a voice shows it detecting YES and NO. A measured accuracy per word is
-still missing. Motion: the data logger is written and
+live test with a voice shows it detecting YES and NO. A cued test (beeps tell the speaker
+which word to say) gave, with few cues: YES 7 of 11, NO 9 of 9, other words 8 of 10 correct.
+Motion: the data logger is written and
 tested; the recording and the Studio steps are still to do.
 
 ## What is different from the book
@@ -2047,14 +2048,51 @@ also reports a looser reading, in which, when both words flashed during one cue,
 with the highest score counts as the answer. We checked the analysis on made-up runs with
 a known number of planted errors, and it counted them correctly.
 
-**Results of the cued test: to be added.**
+**Results of one run** (Arduino core 3.3.12, ESP-NN off, the board's own microphone, one
+speaker, one room, 30 cues in about 2 minutes 40 seconds). The speaker reported afterwards
+that on cue 1, which asked for NO, he said YES by mistake. We used that report to correct
+the ground truth (`--said 1=yes`), so the run counts 11 YES, 9 NO, and 10 other words. The
+rule is the sketch's: YES or NO winning with at least 0.80.
+
+| Asked for | Shown correctly | 95% interval | What went wrong |
+|---|---|---|---|
+| YES (11) | 7 (64%) | 35 to 85% | 3 shown nothing, 1 showed both words |
+| NO (9) | 9 (100%) | 70 to 100% | nothing |
+| Other word (10) | 8 (80%) | 49 to 94% | 2 were shown as NO |
+
+- **If, when both words flashed, the highest score counts,** YES goes to 8 of 11 (73%).
+- **The beeps did not fool the model:** no detection fell during the beeps, and none fell in
+  the quiet gaps between cues.
+- **The three missed YES.** In those windows `yes` reached 0.37, 0.45, and 0.79 while
+  `unknown` or `noise` won (0.89 to 0.96). So the model heard something, but not clearly
+  YES; one came close, just under the 0.80 threshold. We do not know why: we have no
+  recording of the audio, and the word may have been said more quietly, at a different
+  moment, or differently.
+- **The two false NO** came from two of the other words (scores 0.98 and 0.83). We do not
+  know which words they were. This agrees with the offline result that `unknown` clips
+  trigger a word in about 20% of cases, mostly NO.
+- **The threshold is a trade-off here too.** At 0.9, YES rises to 8 of 11 (73%) and other
+  words are shown wrongly only once (9 of 10 correct). At 0.6 or 0.7, other words are shown
+  wrongly 3 times (7 of 10 correct). The time alignment does not matter: forcing the lag
+  anywhere from 0.0 to 0.4 s gave the same table.
+
+**How far to trust it.** Ten cues per word is few: the intervals above are wide, and YES at
+64% is compatible with anything from about 35% to 85%. It is one speaker, one session, one
+distance. The first YES-on-a-NO-cue shows the ground truth can have errors: we corrected the
+one the speaker noticed, and there may be others he did not. The alignment between the beeps
+and the board's answers was moderate (a correlation of 0.58 between loudness and the beeps).
+Offline, on the author's own clips, YES was detected 93% of the time (14 of 15); live it was
+64% (7 of 11). The intervals overlap, so we cannot say the two differ, but the live number is
+lower and we have not explained it.
 
 ### Next steps for keyword spotting
 
-1. **A live test with ground truth.** The first live test shows the model works, but not
-   how well. Play a short beep before each word, log the time of every beep on the
-   computer, ask for a known sequence (for example YES, NO, and other words in a random
-   order), and match each detection to the word that was asked.
+1. **Understand the missed YES.** Live YES was 64% against 93% offline. Make the live
+   sketch save the last second of audio to the card whenever the model hesitates (for
+   example when `yes` is between 0.3 and 0.8), then listen to those clips and send them
+   through the replay test. That would show if the words were quiet, cut off, or
+   different from the training clips.
+   A longer cued test, with more cues per word, would also narrow the intervals.
 2. **Tune the detection rule.** The threshold of 0.80 is a guess. On your test clips
    it misses about 6% of the words and `unknown` triggers a word 20% of the time. A
    rule that asks for two slices in a row, or a different threshold for each word,

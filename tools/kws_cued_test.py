@@ -148,9 +148,13 @@ def wilson(k, n, z=1.96):
     return (max(0.0, c - h), min(1.0, c + h))
 
 
-def analyze(path, thr):
+def analyze(path, thr, said=None, force_shift=None):
     run_ = json.load(open(path))
     cues, recs = run_["plan"], run_["records"]
+    for k_, word in (said or {}).items():  # the speaker tells us what was really said
+        print(f"ground truth corrected: cue {k_} was asked as {cues[k_ - 1]['class'].upper()} but {word.upper()} was said")
+        cues[k_ - 1]["asked"] = cues[k_ - 1]["class"]
+        cues[k_ - 1]["class"] = word
     beeps = [b for c in cues for b in c["beeps"]]
     # Find how late the answers are, by matching the loudness of each slice with the beeps.
     best = (-2.0, 0.0)
@@ -163,6 +167,8 @@ def analyze(path, thr):
         if c > best[0]:
             best = (c, shift)
     corr, shift = best
+    if force_shift is not None:
+        shift = force_shift
     print(f"time alignment: the answers lag the sound by {shift:.2f} s (correlation of loudness with the beeps: {corr:.2f})")
     if corr < 0.3:
         print("  warning: weak alignment, the beeps may have been too quiet for the microphone; results may be unreliable")
@@ -176,9 +182,12 @@ def analyze(path, thr):
         beepwin = (c["beeps"][0][0], ws + 0.40)  # answers that still contain the beeps
         claimed.append((beepwin[0], win[1]))
         fired, best_score = set(), {"yes": 0.0, "no": 0.0}
+        raw = {"no": 0.0, "noise": 0.0, "unknown": 0.0, "yes": 0.0}
         for r in recs:
             if win[0] <= end(r) <= win[1]:
                 sc = {"no": r[2], "noise": r[3], "unknown": r[4], "yes": r[5]}
+                for kk in raw:
+                    raw[kk] = max(raw[kk], sc[kk])
                 top = max(sc, key=sc.get)
                 if top in ("yes", "no") and sc[top] >= thr:
                     fired.add(top); best_score[top] = max(best_score[top], sc[top])
@@ -189,7 +198,7 @@ def analyze(path, thr):
                 if top in ("yes", "no") and sc[top] >= thr:
                     beep_alarms += 1; break
         word = "both" if len(fired) == 2 else (next(iter(fired)) if fired else "nothing")
-        rows.append((i + 1, c["class"], word, best_score))
+        rows.append((i + 1, c["class"], word, best_score, raw))
         tbl = out[c["class"]]
         tbl[word] = tbl.get(word, 0) + 1
     stray = 0
@@ -231,8 +240,8 @@ def analyze(path, thr):
     print(f"stray detections outside any cue (the quiet gaps and the intro/tail): {stray}")
     bad = [r for r in rows if (r[1] == "yes" and r[2] != "yes") or (r[1] == "no" and r[2] != "no") or (r[1] == "other" and r[2] != "nothing")]
     print(f"\ncues that did not go as asked ({len(bad)}):")
-    for n, cls, word, sc in bad:
-        print(f"   cue {n:2d}: asked {cls.upper():5s} -> showed {word:7s} (best yes {sc['yes']:.2f}, no {sc['no']:.2f})")
+    for n, cls, word, sc, raw in bad:
+        print(f"   cue {n:2d}: asked {cls.upper():5s} -> showed {word:7s} | highest score in the window: yes {raw['yes']:.2f}, no {raw['no']:.2f}, unknown {raw['unknown']:.2f}, noise {raw['noise']:.2f}")
 
 
 if __name__ == "__main__":
@@ -241,8 +250,10 @@ if __name__ == "__main__":
     r = sub.add_parser("run"); r.add_argument("port"); r.add_argument("out")
     r.add_argument("--per-class", type=int, default=10); r.add_argument("--seed", type=int, default=7)
     a = sub.add_parser("analyze"); a.add_argument("run"); a.add_argument("--threshold", type=float, default=0.8)
+    a.add_argument("--said", nargs="*", default=[], help="correct the ground truth, e.g. 1=yes (cue 1 was really YES)")
+    a.add_argument("--shift", type=float, default=None, help="force the time lag in seconds instead of estimating it")
     args = ap.parse_args()
     if args.cmd == "run":
         run(args.port, args.out, args.per_class, args.seed)
     else:
-        analyze(args.run, args.threshold)
+        analyze(args.run, args.threshold, {int(x.split('=')[0]): x.split('=')[1] for x in args.said}, args.shift)
