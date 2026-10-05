@@ -1470,17 +1470,23 @@ generated is not in this repository. What it contains, read from its files:
 - it detects no anomalies.
 
 The Studio's public page, for the int8 model that runs on the board, shows **91.3%
-on the validation set and 87.16% on the test set**, and an estimate of 366 ms of
-latency, 15.4 KB of RAM and 30.8 KB of flash for the XIAO ESP32-S3 Plus. (An earlier
-version of this text quoted 91.5% and 87.0%; those were the numbers we first read,
-and the figures on the page are the ones to trust.) We did not reproduce the
-Studio's test. The screenshots below are of that public project.
+on the validation set and 87.16% on the test set**. Its on-device performance
+panels estimate 361 ms and 15 KB of RAM for the MFCC block, and 5 ms, 12.6 KB of
+RAM, and 46.0 KB of flash for the network (EON compiler). We did not reproduce the
+Studio's test. The performance panels are estimates, not measurements on this
+board: in test 04 we measured about 17 ms for the MFCC and about 15 ms for the
+network per slice, so trust the board's numbers. The screenshots below are of the
+public project.
 
 ![The impulse: 1,000 ms windows, 16 kHz audio, MFCC, a classifier with four outputs](../images/studio_1_impulse.jpg)
 
 ![The MFCC block: 13 coefficients, 20 ms frames, 32 filters, FFT 256, normalization window 101](../images/studio_2_mfcc.jpg)
 
 ![The classifier: two 1D convolution layers (8 and 16 filters) with dropout, int8, validation confusion matrix](../images/studio_3_classifier.jpg)
+
+![The Studio's estimate for the MFCC block: 361 ms and 15 KB of RAM](../images/studio_5_mfcc_performance.jpg)
+
+![The Studio's estimate for the network: 5 ms, 12.6 KB of RAM, 46.0 KB of flash](../images/studio_6_classifier_performance.jpg)
 
 ![Model testing: 87.16% on the test set; the `unknown` class is the weakest](../images/studio_4_testing.jpg)
 
