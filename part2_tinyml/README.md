@@ -44,7 +44,8 @@ The book's four classes simulate how a container moves during transport:
 ### Test 01: IMU data logger
 
 Records 10-second samples at **exactly 50 Hz** and saves each one on the card
-as a CSV file named after its class, such as `idle.003.csv`. No computer is
+as a CSV file named after its class, such as `idle.003.csv`, in a folder of the
+same name (`/idle/idle.003.csv`). No computer is
 needed while recording, so the board can ride in a bag, a car, or a cart.
 
 **How to use it**
@@ -80,6 +81,8 @@ motion or outside the lab.
   only code that touches the bus while recording.
 - **The card shares SPI with the display**, so it uses the display's own SPI
   object, as in Part 1, test 08.
+- **One folder per class,** because a small FAT16 card cannot hold hundreds of
+  files in its root folder (see [A limit we hit](#a-limit-we-hit-the-root-folder-of-a-small-fat16-card)).
 - **Debug commands** on the serial port: `c` next class, `r` record, `l` list
   files, `p` print the last file, `x` delete the last file.
 
@@ -91,8 +94,8 @@ motion or outside the lab.
   Part 2, Test 01 - IMU data logger (CSV files on the microSD card)
 
   Records 10-second motion samples at exactly 50 Hz and saves each one as a CSV
-  file on the card, named after its class: maritime.001.csv, idle.003.csv, and so
-  on. No computer is needed while recording, so the board can ride in a bag, a
+  file on the card, named after its class and kept in a folder of the same name:
+  /maritime/maritime.001.csv, /idle/idle.003.csv, and so on. No computer is needed while recording, so the board can ride in a bag, a
   car, or on a cart. Upload the files to Edge Impulse Studio afterwards (Data
   acquisition, Upload data, label inferred from the file name).
 
@@ -222,7 +225,19 @@ static bool initSd() {
 }
 
 static void pathFor(int label, int index, char *out, size_t n) {
-  snprintf(out, n, "/%s.%03d.csv", LABELS[label], index);
+  snprintf(out, n, "/%s/%s.%03d.csv", LABELS[label], LABELS[label], index);
+}
+
+// One folder per class keeps the root folder of a small FAT16 card from filling up
+// (it holds only about 512 entries, and a long name uses three of them).
+static bool ensureDirs() {
+  bool ok = true;
+  for (int l = 0; l < NUM_LABELS; l++) {
+    char d[24];
+    snprintf(d, sizeof(d), "/%s", LABELS[l]);
+    if (!SD.exists(d) && !SD.mkdir(d)) ok = false;
+  }
+  return ok;
 }
 
 static void scanExisting() {
@@ -263,8 +278,9 @@ static void draw() {
     canvas.drawCentreString("NO SD CARD", 86, 120, 1);
     canvas.setTextSize(1);
     canvas.setTextColor(TFT_WHITE, TFT_BLACK);
-    canvas.drawCentreString("Insert a FAT card", 86, 150, 1);
-    canvas.drawCentreString("and press RESET", 86, 164, 1);
+    canvas.drawCentreString("Insert a FAT card, or", 86, 150, 1);
+    canvas.drawCentreString("free space in its root", 86, 164, 1);
+    canvas.drawCentreString("folder, then press RESET", 86, 178, 1);
     canvas.pushSprite(0, 0);
     return;
   }
@@ -429,7 +445,10 @@ void setup() {
   pinMode(BTN_USR2, INPUT_PULLUP);
 
   sdOk = initSd();
-  if (sdOk) scanExisting();
+  if (sdOk) {
+    if (!ensureDirs()) { Serial.println("cannot create the class folders: root folder full?"); sdOk = false; }
+    else scanExisting();
+  }
   Serial.printf("SD %s, %lu MB\n", sdOk ? "ok" : "MISSING", (unsigned long)sdMegabytes);
 
   sampleQueue = xQueueCreate(256, sizeof(Sample));
@@ -532,7 +551,8 @@ done by hand in the Studio, not by the sketches.
 ## Keyword spotting
 
 **Status:** the audio front end and a recorder for your own keywords are written,
-and the dataset is downloaded and checked. Training in the Edge Impulse Studio and the
+the dataset is downloaded and checked, and a first session of your own clips (166)
+is recorded and reviewed. Training in the Edge Impulse Studio and the
 model are not done yet.
 
 The book uses four classes, **yes**, **no**, **noise**, and **unknown**, from the
@@ -821,8 +841,9 @@ collecting words spoken by yourself.
 The recorder listens to the microphone and, each time it hears a word, saves a
 1-second clip with the word inside (300 ms before it starts, 700 ms after), as a
 16 kHz, 16-bit, mono WAV named like the dataset: `yes.own.001.wav`,
-`no.own.014.wav`, and so on. You say a word, wait for "SAVED", and say it again.
-No computer is needed.
+`no.own.014.wav`, and so on, in a folder per class (`/yes`, `/no`, `/unknown`,
+`/noise`). You say a word, wait for "SAVED", and say it again. No computer is
+needed.
 
 **How to use it**
 
@@ -854,6 +875,46 @@ from the card and compared with what was captured. **Word detection has not been
 tested with a voice yet.** The thresholds (a two-frame trigger, a 15 dB margin
 above the background) are first guesses.
 
+![The recorder in two states: LISTENING with the previous clip yes.own.041.wav saved, and SAVED with yes.own.033.wav and its waveform](images/kws_recorder_states.jpg)
+
+*The recorder while collecting YES clips. The waveform is the last clip, with the
+word in the middle. In these photos the line under the level bar wrapped onto a
+second line; the sketch now shortens it.*
+
+**What a first session produced.** One session with a single speaker gave 166
+clips: 50 YES, 50 NO, 50 UNKNOWN, and 16 NOISE (the recorder stopped saving after
+the 16th NOISE clip, see the next section). The files are 16 kHz, 16-bit, mono,
+exactly 1.00 s, and not empty. We reviewed them with `tools/kws_clip_review.py`.
+
+| Class | Clips | RMS median (dBFS) | RMS 10th to 90th percentile | Peak median / 90th percentile |
+|---|---|---|---|---|
+| yes | 50 | -39.2 | -44.2 to -29.9 | -22.6 / -5.7 |
+| no | 50 | -41.1 | -46.3 to -35.0 | -25.6 / -19.2 |
+| unknown | 50 | -39.1 | -42.0 to -28.6 | -22.2 / -7.2 |
+| noise | 16 | -64.9 | -70.9 to -31.5 | -42.1 / -20.2 |
+
+- **The words are centered as designed.** The word starts at about 300 ms in the
+  clip (median 300 for YES and NO, 320 for UNKNOWN).
+- **This microphone is quieter than the dataset.** The medians for the three word
+  classes are -39 to -41 dBFS, against -24 to -25 dBFS for the dataset's clips.
+  That is **14 to 17 dB lower**, with the same measurement on both sides (the RMS of
+  a whole 1-second clip). It is the risk we noted earlier, now measured. These
+  recordings were made at one distance and one speaking volume, so the gap is one
+  speaker's, not a property of the microphone.
+- **A fixed gain is not a free fix.** Raising everything by 14 dB would match the
+  medians, but the louder clips would clip: the 90th percentile of the peaks is
+  already -5.7 dBFS for YES and -7.2 for UNKNOWN. Whether a gain helps the model
+  is something to test, not assume (see the next steps).
+- **Ten clips look suspicious** out of 150 word clips: `yes.own.003`, `022`,
+  `038`, `039`, `047`; `no.own.026`; `unknown.own.001`, `022`, `036`, `046`. The
+  reasons are a word that may be cut off, two separate bursts, or a very quiet
+  clip (`yes.own.022` is at -62 dBFS). The review looks only at the signal. It
+  cannot tell whether the word you said is the word in the label, so listen to
+  these before you upload them.
+- **The noise class is quiet and short.** Its median is -65 dBFS, against -27 for
+  the dataset's noise clips, and there are only 16 of them. More noise recorded
+  in the room where the board will be used would help.
+
 #### How it works
 
 - **A 2-second ring buffer** is filled by a capture task, as in test 02.
@@ -879,6 +940,9 @@ above the background) are first guesses.
   with the word in it (300 ms before the start, 700 ms after) as a 16 kHz, 16-bit,
   mono WAV named like the Edge Impulse dataset: yes.own.001.wav, no.own.014.wav,
   and so on. Say a word, wait for "SAVED", say it again. No computer is needed.
+  Each class goes in its own folder (/yes, /no, /unknown, /noise): the root folder of
+  a small FAT16 card holds only about 512 entries, and long names use three each, so
+  roughly 165 files in the root fill it, even with the card nearly empty.
 
   Classes: YES, NO, UNKNOWN (any other word), NOISE. For NOISE the board does not
   wait for a word: it saves one clip every 1.5 seconds, so you can let it record
@@ -972,6 +1036,7 @@ static Phase phase = P_STOPPED;
 static int selected = 0;
 static int nextIndex[NUM_CLASSES];
 static bool sdOk = false;
+static bool dirError = false;  // could not create the class folders (root folder full?)
 static uint32_t sdMb = 0;
 
 static uint32_t framesDone = 0;     // frames analysed so far
@@ -1003,7 +1068,16 @@ static bool initSd() {
   return false;
 }
 
-static void pathFor(int cls, int idx, char *out, size_t n) { snprintf(out, n, "/%s.own.%03d.wav", LABELS[cls], idx); }
+static void pathFor(int cls, int idx, char *out, size_t n) { snprintf(out, n, "/%s/%s.own.%03d.wav", LABELS[cls], LABELS[cls], idx); }
+
+// One folder per class. Creating a folder needs a free entry in the root folder.
+static void ensureDirs() {
+  for (int c = 0; c < NUM_CLASSES; c++) {
+    char d[24];
+    snprintf(d, sizeof(d), "/%s", LABELS[c]);
+    if (!SD.exists(d) && !SD.mkdir(d)) dirError = true;
+  }
+}
 
 static void scanExisting() {
   for (int c = 0; c < NUM_CLASSES; c++) {
@@ -1079,7 +1153,7 @@ static void captureAndSave(uint32_t startSample) {
     makeThumb();
     snprintf(statusLine, sizeof(statusLine), "SAVED %s", path + 1);
   } else {
-    snprintf(statusLine, sizeof(statusLine), "WRITE FAILED");
+    snprintf(statusLine, sizeof(statusLine), "CANNOT SAVE: card/folder?");
   }
   Serial.printf("%s %s rms=%.1f dBFS peak=%.1f dBFS %s\n", ok ? "SAVED" : "FAILED", path, lastRmsDb, lastPeakDb,
                 ok ? "(verified by reading it back)" : "");
@@ -1157,6 +1231,20 @@ static void draw() {
     canvas.pushSprite(0, 0);
     return;
   }
+  if (dirError) {
+    canvas.drawCentreString("KWS RECORDER", 86, 4, 1);
+    canvas.setTextColor(TFT_RED, TFT_BLACK);
+    canvas.drawCentreString("CARD FULL", 86, 80, 1);
+    canvas.setTextSize(1);
+    canvas.setTextColor(TFT_WHITE, TFT_BLACK);
+    canvas.drawCentreString("Cannot create the folders.", 86, 120, 1);
+    canvas.drawCentreString("The root folder is full.", 86, 134, 1);
+    canvas.drawCentreString("Copy the clips to a computer,", 86, 160, 1);
+    canvas.drawCentreString("delete them from the card,", 86, 174, 1);
+    canvas.drawCentreString("and press RESET.", 86, 188, 1);
+    canvas.pushSprite(0, 0);
+    return;
+  }
   canvas.drawCentreString("KWS RECORDER", 86, 4, 1);
   for (int i = 0; i < NUM_CLASSES; i++) {
     int y = 26 + i * 34;
@@ -1180,7 +1268,7 @@ static void draw() {
   canvas.drawFastVLine(xOf(floorDb + marginDb), by - 3, 20, TFT_ORANGE);
   canvas.setTextSize(1);
   canvas.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  snprintf(t, sizeof(t), "now %.0f  floor %.0f  trigger %.0f dBFS", frameDbNow, floorDb, floorDb + marginDb);
+  snprintf(t, sizeof(t), "now %.0f floor %.0f trig %.0f", frameDbNow, floorDb, floorDb + marginDb);
   canvas.setCursor(6, by + 20);
   canvas.print(t);
 
@@ -1234,7 +1322,11 @@ void setup() {
   pinMode(BTN_USR1, INPUT_PULLUP);
   pinMode(BTN_USR2, INPUT_PULLUP);
   sdOk = initSd();
-  if (sdOk) scanExisting();
+  if (sdOk) {
+    ensureDirs();
+    if (dirError) Serial.println("cannot create the class folders: the root folder is full");
+    else scanExisting();
+  }
   Serial.printf("SD %s, %lu MB\n", sdOk ? "ok" : "MISSING", (unsigned long)sdMb);
   if (!micBegin()) { Serial.println("mic init FAILED"); return; }
   xTaskCreatePinnedToCore(captureTask, "audio", 6144, nullptr, configMAX_PRIORITIES - 2, nullptr, 0);
@@ -1259,9 +1351,17 @@ void loop() {
       if (name.length() > 1 && SD.exists(name)) { SD.remove(name); Serial.printf("deleted %s\n", name.c_str()); scanExisting(); }
       else Serial.printf("not found: %s\n", name.c_str());
     }
-    if (c == 'l') { File r = SD.open("/"); for (File f = r.openNextFile(); f; f = r.openNextFile()) Serial.printf("%s %u\n", f.name(), (unsigned)f.size()); }
+    if (c == 'l') {  // the root, and how many files each folder holds
+      File r = SD.open("/");
+      for (File f = r.openNextFile(); f; f = r.openNextFile()) {
+        if (f.isDirectory()) {
+          int n = 0; for (File g = f.openNextFile(); g; g = f.openNextFile()) n++;
+          Serial.printf("%s/  %d files\n", f.name(), n);
+        } else Serial.printf("%s  %u bytes\n", f.name(), (unsigned)f.size());
+      }
+    }
   }
-  if (!sdOk) { delay(100); return; }
+  if (!sdOk || dirError) { if (press1) {} delay(100); draw(); return; }
   if (press1) { toggleListening(); dirty = true; }
   if (press2) { deleteLast(); dirty = true; }
 
@@ -1289,6 +1389,35 @@ void loop() {
 ```
 <!-- /sketch -->
 
+### A limit we hit: the root folder of a small FAT16 card
+
+![The recorder showing WRITE FAILED while the NOISE class stands at 16 clips](images/kws_recorder_write_failed.jpg)
+
+**Symptom.** After 166 clips the recorder showed `WRITE FAILED` and saved nothing
+more. That is why there are only 16 NOISE clips.
+
+**Cause.** It was not a full card: the 947 MB card was 99% free. A FAT16 volume
+has a fixed-size root folder, typically 512 entries, and a file with a long name
+uses several of them. Names like `unknown.own.001.wav` use three entries each, so
+166 files take 498 entries, and with the three items already on the card and the
+volume label, the count reaches 508. macOS adds a few more hidden items (such as
+`.fseventsd` and `.Trashes`) when it mounts the card, which brings it to 512.
+
+**How we checked.** With the card mounted on the Mac, creating even one new file
+with a long name failed with *no space left on device*, while the volume reported
+936 MiB free. The board gave the same answer when it tried to create the class
+folders on that card. We did not read the root-folder size from the volume itself,
+so "512 entries" is the usual value for FAT16, not something we measured on this
+card.
+
+**Fix.** The recorder and the logger now keep each class in its own folder.
+Subfolders do not have the root's limit. Creating the folders needs a few free
+entries in the root, so on a card whose root is already full, the sketches say so
+on the screen (`CARD FULL`) and on the serial port, instead of failing quietly. To
+recover such a card, copy the clips to a computer, delete them from the card, and
+reset the board. The fixed sketches compile; we have not run the full recording
+session with them yet.
+
 ### Next steps for keyword spotting
 
 1. Upload the four dataset folders to a new Edge Impulse project, with *Data acquisition,
@@ -1300,5 +1429,9 @@ void loop() {
    network (two Conv1D and pooling blocks with 8 and 16 filters, dropout 0.25,
    learning rate 0.005, 100 epochs, noise augmentation).
 3. Test, then deploy as an Arduino library (quantized, int8).
+   Also test the model on your own clips, kept out of training, and compare it with
+   the same clips made louder by 6 dB and by 12 dB (limited so they do not clip)
+   to learn whether a gain on the microphone helps. That is an experiment to run,
+   not a result.
 4. Replace `process()` with the Edge Impulse classifier, and show the detected
    word and its confidence on the display.

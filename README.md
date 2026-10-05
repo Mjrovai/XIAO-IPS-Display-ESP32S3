@@ -2219,6 +2219,16 @@ reference image and see.
   Sketches that run once in `setup()` should print a summary again in
   `loop()`, as `08_sd` does.
 
+### 7. A small FAT16 card fills up after about 165 files
+
+A card under 2 GB is usually FAT16, whose root folder holds a fixed number of
+entries (typically 512), and a long file name uses several of them. A card that
+is 99% free can still refuse to create a file once the root holds about 165
+long-named files. The error looks like "no space left on device", and a sketch
+sees a failed write. Keep files in subfolders. Part 2 hit this while recording
+audio clips; see
+[the details](part2_tinyml/README.md#a-limit-we-hit-the-root-folder-of-a-small-fat16-card).
+
 ## Results for the 1.47" touch version
 
 | Test | Result |
@@ -2288,6 +2298,8 @@ tools/
   serial_read.py      prints a serial port for N seconds (standard library only)
   update_listings.py  refreshes the code listings in the READMEs from the sketches
   gray_ramp_reference.png  the same eight gray levels, to open on a Mac for the color comparison
+  kws_dataset_check.py  checks a keyword dataset folder (formats, lengths, levels)
+  kws_clip_review.py  reviews your own keyword clips and flags suspicious ones
 part2_tinyml/         Part 2: TinyML with Edge Impulse (in progress)
 xiao_esp32s3_147_hello/   the first "Hello, XIAO" sketch
 ```

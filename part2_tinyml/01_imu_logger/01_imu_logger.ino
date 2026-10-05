@@ -2,8 +2,8 @@
   Part 2, Test 01 - IMU data logger (CSV files on the microSD card)
 
   Records 10-second motion samples at exactly 50 Hz and saves each one as a CSV
-  file on the card, named after its class: maritime.001.csv, idle.003.csv, and so
-  on. No computer is needed while recording, so the board can ride in a bag, a
+  file on the card, named after its class and kept in a folder of the same name:
+  /maritime/maritime.001.csv, /idle/idle.003.csv, and so on. No computer is needed while recording, so the board can ride in a bag, a
   car, or on a cart. Upload the files to Edge Impulse Studio afterwards (Data
   acquisition, Upload data, label inferred from the file name).
 
@@ -133,7 +133,19 @@ static bool initSd() {
 }
 
 static void pathFor(int label, int index, char *out, size_t n) {
-  snprintf(out, n, "/%s.%03d.csv", LABELS[label], index);
+  snprintf(out, n, "/%s/%s.%03d.csv", LABELS[label], LABELS[label], index);
+}
+
+// One folder per class keeps the root folder of a small FAT16 card from filling up
+// (it holds only about 512 entries, and a long name uses three of them).
+static bool ensureDirs() {
+  bool ok = true;
+  for (int l = 0; l < NUM_LABELS; l++) {
+    char d[24];
+    snprintf(d, sizeof(d), "/%s", LABELS[l]);
+    if (!SD.exists(d) && !SD.mkdir(d)) ok = false;
+  }
+  return ok;
 }
 
 static void scanExisting() {
@@ -174,8 +186,9 @@ static void draw() {
     canvas.drawCentreString("NO SD CARD", 86, 120, 1);
     canvas.setTextSize(1);
     canvas.setTextColor(TFT_WHITE, TFT_BLACK);
-    canvas.drawCentreString("Insert a FAT card", 86, 150, 1);
-    canvas.drawCentreString("and press RESET", 86, 164, 1);
+    canvas.drawCentreString("Insert a FAT card, or", 86, 150, 1);
+    canvas.drawCentreString("free space in its root", 86, 164, 1);
+    canvas.drawCentreString("folder, then press RESET", 86, 178, 1);
     canvas.pushSprite(0, 0);
     return;
   }
@@ -340,7 +353,10 @@ void setup() {
   pinMode(BTN_USR2, INPUT_PULLUP);
 
   sdOk = initSd();
-  if (sdOk) scanExisting();
+  if (sdOk) {
+    if (!ensureDirs()) { Serial.println("cannot create the class folders: root folder full?"); sdOk = false; }
+    else scanExisting();
+  }
   Serial.printf("SD %s, %lu MB\n", sdOk ? "ok" : "MISSING", (unsigned long)sdMegabytes);
 
   sampleQueue = xQueueCreate(256, sizeof(Sample));

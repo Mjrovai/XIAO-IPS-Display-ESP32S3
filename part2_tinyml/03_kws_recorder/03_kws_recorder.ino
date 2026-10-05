@@ -5,6 +5,9 @@
   with the word in it (300 ms before the start, 700 ms after) as a 16 kHz, 16-bit,
   mono WAV named like the Edge Impulse dataset: yes.own.001.wav, no.own.014.wav,
   and so on. Say a word, wait for "SAVED", say it again. No computer is needed.
+  Each class goes in its own folder (/yes, /no, /unknown, /noise): the root folder of
+  a small FAT16 card holds only about 512 entries, and long names use three each, so
+  roughly 165 files in the root fill it, even with the card nearly empty.
 
   Classes: YES, NO, UNKNOWN (any other word), NOISE. For NOISE the board does not
   wait for a word: it saves one clip every 1.5 seconds, so you can let it record
@@ -98,6 +101,7 @@ static Phase phase = P_STOPPED;
 static int selected = 0;
 static int nextIndex[NUM_CLASSES];
 static bool sdOk = false;
+static bool dirError = false;  // could not create the class folders (root folder full?)
 static uint32_t sdMb = 0;
 
 static uint32_t framesDone = 0;     // frames analysed so far
@@ -129,7 +133,16 @@ static bool initSd() {
   return false;
 }
 
-static void pathFor(int cls, int idx, char *out, size_t n) { snprintf(out, n, "/%s.own.%03d.wav", LABELS[cls], idx); }
+static void pathFor(int cls, int idx, char *out, size_t n) { snprintf(out, n, "/%s/%s.own.%03d.wav", LABELS[cls], LABELS[cls], idx); }
+
+// One folder per class. Creating a folder needs a free entry in the root folder.
+static void ensureDirs() {
+  for (int c = 0; c < NUM_CLASSES; c++) {
+    char d[24];
+    snprintf(d, sizeof(d), "/%s", LABELS[c]);
+    if (!SD.exists(d) && !SD.mkdir(d)) dirError = true;
+  }
+}
 
 static void scanExisting() {
   for (int c = 0; c < NUM_CLASSES; c++) {
@@ -205,7 +218,7 @@ static void captureAndSave(uint32_t startSample) {
     makeThumb();
     snprintf(statusLine, sizeof(statusLine), "SAVED %s", path + 1);
   } else {
-    snprintf(statusLine, sizeof(statusLine), "WRITE FAILED");
+    snprintf(statusLine, sizeof(statusLine), "CANNOT SAVE: card/folder?");
   }
   Serial.printf("%s %s rms=%.1f dBFS peak=%.1f dBFS %s\n", ok ? "SAVED" : "FAILED", path, lastRmsDb, lastPeakDb,
                 ok ? "(verified by reading it back)" : "");
@@ -283,6 +296,20 @@ static void draw() {
     canvas.pushSprite(0, 0);
     return;
   }
+  if (dirError) {
+    canvas.drawCentreString("KWS RECORDER", 86, 4, 1);
+    canvas.setTextColor(TFT_RED, TFT_BLACK);
+    canvas.drawCentreString("CARD FULL", 86, 80, 1);
+    canvas.setTextSize(1);
+    canvas.setTextColor(TFT_WHITE, TFT_BLACK);
+    canvas.drawCentreString("Cannot create the folders.", 86, 120, 1);
+    canvas.drawCentreString("The root folder is full.", 86, 134, 1);
+    canvas.drawCentreString("Copy the clips to a computer,", 86, 160, 1);
+    canvas.drawCentreString("delete them from the card,", 86, 174, 1);
+    canvas.drawCentreString("and press RESET.", 86, 188, 1);
+    canvas.pushSprite(0, 0);
+    return;
+  }
   canvas.drawCentreString("KWS RECORDER", 86, 4, 1);
   for (int i = 0; i < NUM_CLASSES; i++) {
     int y = 26 + i * 34;
@@ -306,7 +333,7 @@ static void draw() {
   canvas.drawFastVLine(xOf(floorDb + marginDb), by - 3, 20, TFT_ORANGE);
   canvas.setTextSize(1);
   canvas.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  snprintf(t, sizeof(t), "now %.0f  floor %.0f  trigger %.0f dBFS", frameDbNow, floorDb, floorDb + marginDb);
+  snprintf(t, sizeof(t), "now %.0f floor %.0f trig %.0f", frameDbNow, floorDb, floorDb + marginDb);
   canvas.setCursor(6, by + 20);
   canvas.print(t);
 
@@ -360,7 +387,11 @@ void setup() {
   pinMode(BTN_USR1, INPUT_PULLUP);
   pinMode(BTN_USR2, INPUT_PULLUP);
   sdOk = initSd();
-  if (sdOk) scanExisting();
+  if (sdOk) {
+    ensureDirs();
+    if (dirError) Serial.println("cannot create the class folders: the root folder is full");
+    else scanExisting();
+  }
   Serial.printf("SD %s, %lu MB\n", sdOk ? "ok" : "MISSING", (unsigned long)sdMb);
   if (!micBegin()) { Serial.println("mic init FAILED"); return; }
   xTaskCreatePinnedToCore(captureTask, "audio", 6144, nullptr, configMAX_PRIORITIES - 2, nullptr, 0);
@@ -385,9 +416,17 @@ void loop() {
       if (name.length() > 1 && SD.exists(name)) { SD.remove(name); Serial.printf("deleted %s\n", name.c_str()); scanExisting(); }
       else Serial.printf("not found: %s\n", name.c_str());
     }
-    if (c == 'l') { File r = SD.open("/"); for (File f = r.openNextFile(); f; f = r.openNextFile()) Serial.printf("%s %u\n", f.name(), (unsigned)f.size()); }
+    if (c == 'l') {  // the root, and how many files each folder holds
+      File r = SD.open("/");
+      for (File f = r.openNextFile(); f; f = r.openNextFile()) {
+        if (f.isDirectory()) {
+          int n = 0; for (File g = f.openNextFile(); g; g = f.openNextFile()) n++;
+          Serial.printf("%s/  %d files\n", f.name(), n);
+        } else Serial.printf("%s  %u bytes\n", f.name(), (unsigned)f.size());
+      }
+    }
   }
-  if (!sdOk) { delay(100); return; }
+  if (!sdOk || dirError) { if (press1) {} delay(100); draw(); return; }
   if (press1) { toggleListening(); dirty = true; }
   if (press2) { deleteLast(); dirty = true; }
 
