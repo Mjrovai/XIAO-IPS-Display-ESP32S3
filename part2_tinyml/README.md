@@ -8,8 +8,9 @@ XIAO IPS Display (ESP32-S3) boards. The vision chapters do not apply, because
 these boards have no camera.
 
 **Status: in progress.** Keyword spotting: a model was trained in the Edge Impulse
-Studio and runs on the board, and it classifies recorded clips correctly there. It
-has not yet been tested live with a voice. Motion: the data logger is written and
+Studio and runs on the board, it classifies recorded clips correctly there, and a first
+live test with a voice shows it detecting YES and NO. A measured accuracy per word is
+still missing. Motion: the data logger is written and
 tested; the recording and the Studio steps are still to do.
 
 ## What is different from the book
@@ -552,8 +553,8 @@ done by hand in the Studio, not by the sketches.
 
 **Status:** the model is trained and runs on the board. Replaying recorded clips on
 the device gives the same answers as the same model on a computer (tests 04 and 05).
-The first live test with a voice, on the board's own microphone, still has to be
-done properly. Finding why the first attempt failed took a detour through a bug in
+A first live test with a voice, on the board's own microphone, now works (see
+[the live test](#the-live-test-with-a-voice)). Finding why the first attempt failed took a detour through a bug in
 the optimized neural-network kernels (see [A problem we found](#a-problem-we-found-the-esp-nn-kernels-give-wrong-answers)).
 
 The book uses four classes, **yes**, **no**, **noise**, and **unknown**, from the
@@ -1983,16 +1984,45 @@ not isolated with an experiment: the MFCC block normalizes the coefficients over
 sliding window (its `win_size` is 101), which removes a constant gain, and the
 network's outputs are quantized in steps of about 0.004.
 
-**What is still unmeasured: the microphone and the room.** Everything above uses
-recorded clips. The first live attempt, with ESP-NN on, never worked (see above). A
-second one, with ESP-NN off, had no speech in it (the loudest slice was -48 dBFS), so
-it proves nothing. The live test with a voice is still to do.
+### The live test with a voice
+
+Three live attempts, in order:
+
+1. With ESP-NN on (the default), speech was clearly present, yet `yes` never went above
+   0.09. This is what led to the problem described above.
+2. With ESP-NN off, but no speech in the recording (the loudest slice was -48 dBFS), so
+   it proves nothing.
+3. **With ESP-NN off and a voice,** on the board's own microphone, over about 100 s. The
+   loudest slice was -29 dBFS, and 67 of the 400 slices were louder than -45 dBFS.
+
+What attempt 3 shows:
+
+- **The model detects the words.** There were 27 stretches in which the winner was not
+  `noise`. In 7 of them only `yes` reached 0.80, in 11 only `no`, in 4 both did, and in 5
+  neither (the winner was `unknown`, or the scores were weak). A clean word gives a score
+  of 1.00 for 3 to 5 slices in a row, which is 0.75 to 1.25 s.
+- **Words that are not YES or NO mostly land in `unknown`,** with scores of 0.88 to 0.99.
+- **No false alarms in the quiet.** Of the 397 one-second windows whose levels are all
+  known, 168 were entirely quiet (every slice below -50 dBFS). In none of them did `yes`
+  or `no` reach 0.80.
+- **The label can flicker inside one word.** Several stretches switch between `yes`,
+  `no`, and `unknown` for a slice or two, for example `yes yes yes yes unk unk no yes yes
+  yes`. A rule that asks for two slices in a row would hide those flickers; we have not
+  tried it.
+
+What it does **not** show: an accuracy per word. The exact order and number of the words
+spoken, with their times, were not recorded, so we cannot say how many `yes` were missed
+or how many `no` were taken for `yes`. For that number, the test needs ground truth, for
+example a cue (a beep) before every word, logged on the computer, so that each detection
+can be matched to what was asked. The measurements on recorded clips above remain the
+reliable numbers.
 
 ### Next steps for keyword spotting
 
-1. **The live test with a voice** on the board, with the model that works: say YES and
-   NO about ten times each, then ten other words, in separate blocks, and compare the
-   serial log with what you said. This is the measurement that is still missing.
+1. **A live test with ground truth.** The first live test shows the model works, but not
+   how well. Play a short beep before each word, log the time of every beep on the
+   computer, ask for a known sequence (for example YES, NO, and other words in a random
+   order), and match each detection to the word that was asked.
 2. **Tune the detection rule.** The threshold of 0.80 is a guess. On your test clips
    it misses about 6% of the words and `unknown` triggers a word 20% of the time. A
    rule that asks for two slices in a row, or a different threshold for each word,
