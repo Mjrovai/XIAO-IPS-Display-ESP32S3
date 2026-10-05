@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the code listings in README.md from the sketch files.
+"""Refresh the code listings in README.md and part2_tinyml/README.md from the sketch files.
 
 Each listing sits between two marker comments:
 
@@ -16,7 +16,7 @@ import sys
 REPO = "https://github.com/Mjrovai/XIAO-IPS-Display-ESP32S3"
 BRANCH = "main"
 
-readme = open("README.md", encoding="utf-8").read()
+FILES = ["README.md", "part2_tinyml/README.md"]
 pattern = re.compile(r"(<!-- sketch: (\S+) -->\n).*?(<!-- /sketch -->)", re.S)
 
 
@@ -28,7 +28,14 @@ def block(match):
             f"```cpp\n{code}\n```\n{match.group(3)}")
 
 
-new, count = pattern.subn(block, readme)
-open("README.md", "w", encoding="utf-8").write(new)
-print(f"updated {count} listing(s)")
-sys.exit(0 if count else 1)
+total = 0
+for name in FILES:
+    try:
+        text = open(name, encoding="utf-8").read()
+    except FileNotFoundError:
+        continue
+    new, count = pattern.subn(block, text)
+    open(name, "w", encoding="utf-8").write(new)
+    print(f"{name}: updated {count} listing(s)")
+    total += count
+sys.exit(0 if total else 1)

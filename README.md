@@ -2239,8 +2239,9 @@ reference image and see.
 - **Part 1, other boards:** repeat these tests on the 1.14" and 0.96" versions.
   Their panels are ST7789, they have no touch or microSD, and the 1.14" adds a
   Grove connector and a third button.
-- **Part 2, TinyML:** collect labeled IMU data and classify motion on the
-  device; collect microphone audio and run keyword spotting.
+- **Part 2, TinyML (in progress):** collect labeled IMU data and classify motion
+  on the device; collect microphone audio and run keyword spotting. It follows
+  the author's book *TinyML Made Easy*. See [part2_tinyml](part2_tinyml/README.md).
 - **Part 3, a tiny language model:** run a very small model on the ESP32-S3 with
   the weights in PSRAM, and show the generated text on the screen.
 
@@ -2285,7 +2286,8 @@ tools/
   make_fast_lib.sh    builds libs/Seeed_GFX2_fast from your installed library
   build_all.sh        compiles every sketch
   serial_read.py      prints a serial port for N seconds (standard library only)
-  update_listings.py  refreshes the code listings in this README from the sketches
+  update_listings.py  refreshes the code listings in the READMEs from the sketches
   gray_ramp_reference.png  the same eight gray levels, to open on a Mac for the color comparison
+part2_tinyml/         Part 2: TinyML with Edge Impulse (in progress)
 xiao_esp32s3_147_hello/   the first "Hello, XIAO" sketch
 ```
