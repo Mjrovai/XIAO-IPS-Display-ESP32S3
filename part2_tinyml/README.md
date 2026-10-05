@@ -1415,8 +1415,14 @@ Subfolders do not have the root's limit. Creating the folders needs a few free
 entries in the root, so on a card whose root is already full, the sketches say so
 on the screen (`CARD FULL`) and on the serial port, instead of failing quietly. To
 recover such a card, copy the clips to a computer, delete them from the card, and
-reset the board. The fixed sketches compile; we have not run the full recording
-session with them yet.
+reset the board.
+
+**Tested after the fix.** We cleared the card (the 166 clips were first checked
+byte for byte against the copies on the Mac) and reset the board. It created the
+class folders on its own. The logger saved a 500-row file into `/idle/` with no
+lost samples, and the recorder saved six NOISE clips into `/noise/`, each read
+back and verified; we removed those test files afterwards. We have not run a full
+recording session with the fixed sketches yet.
 
 ### Next steps for keyword spotting
 
