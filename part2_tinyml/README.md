@@ -875,7 +875,7 @@ from the card and compared with what was captured. **Word detection has not been
 tested with a voice yet.** The thresholds (a two-frame trigger, a 15 dB margin
 above the background) are first guesses.
 
-![The recorder in two states: LISTENING with the previous clip yes.own.041.wav saved, and SAVED with yes.own.033.wav and its waveform](images/kws_recorder_states.jpg)
+![The recorder in two states: LISTENING with the previous clip yes.own.041.wav saved, and SAVED with yes.own.033.wav and its waveform](../images/kws_recorder_states.jpg)
 
 *The recorder while collecting YES clips. The waveform is the last clip, with the
 word in the middle. In these photos the line under the level bar wrapped onto a
@@ -1420,7 +1420,7 @@ accuracy by about 6 points. Treat the result as a rough indication.
 
 ### A limit we hit: the root folder of a small FAT16 card
 
-![The recorder showing WRITE FAILED while the NOISE class stands at 16 clips](images/kws_recorder_write_failed.jpg)
+![The recorder showing WRITE FAILED while the NOISE class stands at 16 clips](../images/kws_recorder_write_failed.jpg)
 
 **Symptom.** After 166 clips the recorder showed `WRITE FAILED` and saved nothing
 more. That is why there are only 16 NOISE clips.
@@ -1516,13 +1516,12 @@ class `noise` wins nearly everywhere, but with less certainty than before the fi
 (scores of 0.46 to 0.89), and `unknown` sometimes reaches 0.4 to 0.5. We have not
 measured the live behavior with a voice.
 
-![Three states of the live sketch: YES detected, NO shown while the bars still read 44 percent, and listening with unknown at 93 percent](images/kws_live_states.jpg)
+![Four states of the live sketch: YES detected, NO detected, listening with unknown at 92 percent, and NO still shown while the bars read 44 percent](../images/kws_live_states.jpg)
 
-*Left: a clean YES, with the YES bar at 100%. Middle: NO is shown while the bars read
-no 44%, unknown 39%. The word is kept on screen for one second after the detection,
-while the bars show the current scores. Right: no word, `unknown` at 93%. In these
-photos the title was cut off at both edges and the idle state showed three squares;
-the sketch now says KEYWORDS and "listening".*
+*From left to right: a clean YES (YES bar at 100%); a clean NO (99%); no word, with
+`unknown` at 92%; and NO still on screen while the bars read no 44%, unknown 48%.
+The last one is the hold: a detected word stays on the screen for one second
+(`HOLD_MS`), while the bars show the current scores.*
 
 #### How it works
 
