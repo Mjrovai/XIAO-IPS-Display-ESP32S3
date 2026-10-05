@@ -1469,10 +1469,20 @@ generated is not in this repository. What it contains, read from its files:
   needs **no PSRAM** (the book asks for it, for the Sense board's sketch);
 - it detects no anomalies.
 
-The Studio's public page reports **91.5% on the validation set and 87.0% on the test
-set**, and an estimate of 366 ms of latency, 15.4 KB of RAM and 30.8 KB of flash for
-the XIAO ESP32-S3 Plus. We read those numbers from the page and did not reproduce
-the Studio's test.
+The Studio's public page, for the int8 model that runs on the board, shows **91.3%
+on the validation set and 87.16% on the test set**, and an estimate of 366 ms of
+latency, 15.4 KB of RAM and 30.8 KB of flash for the XIAO ESP32-S3 Plus. (An earlier
+version of this text quoted 91.5% and 87.0%; those were the numbers we first read,
+and the figures on the page are the ones to trust.) We did not reproduce the
+Studio's test. The screenshots below are of that public project.
+
+![The impulse: 1,000 ms windows, 16 kHz audio, MFCC, a classifier with four outputs](../images/studio_1_impulse.jpg)
+
+![The MFCC block: 13 coefficients, 20 ms frames, 32 filters, FFT 256, normalization window 101](../images/studio_2_mfcc.jpg)
+
+![The classifier: two 1D convolution layers (8 and 16 filters) with dropout, int8, validation confusion matrix](../images/studio_3_classifier.jpg)
+
+![Model testing: 87.16% on the test set; the `unknown` class is the weakest](../images/studio_4_testing.jpg)
 
 ### Test 04: keyword spotting on the board
 
