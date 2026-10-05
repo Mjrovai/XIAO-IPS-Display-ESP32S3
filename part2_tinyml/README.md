@@ -7,10 +7,10 @@ Spotting (KWS)*. The book uses the XIAOML Kit; here the same labs run on the
 XIAO IPS Display (ESP32-S3) boards. The vision chapters do not apply, because
 these boards have no camera.
 
-**Status: in progress.** The data logger for motion is written and tested. The
-Edge Impulse Studio steps (training, testing, and building the library) have
-not been run yet, so this page has no model results. They will be added when
-they exist.
+**Status: in progress.** Keyword spotting: a model was trained in the Edge Impulse
+Studio and runs on the board, and it classifies recorded clips correctly there. It
+has not yet been tested live with a voice. Motion: the data logger is written and
+tested; the recording and the Studio steps are still to do.
 
 ## What is different from the book
 
@@ -550,10 +550,11 @@ done by hand in the Studio, not by the sketches.
 
 ## Keyword spotting
 
-**Status:** the audio front end and a recorder for your own keywords are written,
-the dataset is downloaded and checked, and a first session of your own clips (166)
-is recorded and reviewed. Training in the Edge Impulse Studio and the
-model are not done yet.
+**Status:** the model is trained and runs on the board. Replaying recorded clips on
+the device gives the same answers as the same model on a computer (tests 04 and 05).
+The first live test with a voice, on the board's own microphone, still has to be
+done properly. Finding why the first attempt failed took a detour through a bug in
+the optimized neural-network kernels (see [A problem we found](#a-problem-we-found-the-esp-nn-kernels-give-wrong-answers)).
 
 The book uses four classes, **yes**, **no**, **noise**, and **unknown**, from the
 Edge Impulse keyword-spotting pre-built dataset (derived from Pete Warden's
@@ -581,12 +582,10 @@ as RMS in dBFS over each 1-second clip:
 | unknown | -35.1 | -24.3 | -17.1 | 14 |
 | noise | -37.3 | -27.4 | -15.4 | 9 |
 
-**A risk to check.** These clips are fairly loud. Our microphone measured lower
-levels for speech in Part 1, test 04, but that was the RMS of 64 ms blocks, which
-is not the same measurement as the RMS of a whole 1-second clip, so the two are
-not directly comparable. Whether speech picked up by this board is quieter than
-the training data, and whether that hurts the model, is something to measure once
-there is a model and recordings from the board.
+**A question that was open, and is now answered.** These clips are fairly loud, and
+the speech this board records is quieter (see test 03). Whether that hurts the model
+turned out not to matter: with this model, the answers do not change when the signal
+is made 12 dB louder or 36 dB quieter (test 05).
 
 The files are derived from Pete Warden's Speech Commands dataset
 ([arXiv:1804.03209](https://arxiv.org/abs/1804.03209)). They are not in this
@@ -605,10 +604,9 @@ and no read errors. Single intervals between slices alternate between 240 ms and
 256 ms, because the driver hands over audio in 16 ms blocks, but the average over
 400 slices was 250.03 ms, so no audio is lost. The main loop picked up each
 slice within 1.6 ms of its completion while it also redrew the screen. We did
-not test it with a model, so the processing time of a real classifier is not
-known yet. The book says the KWS sketch needs PSRAM enabled; this test does not
-use it, and we have not yet checked how much memory a real model needs on this
-board.
+not test this sketch with a model; test 04 does, and it takes about 32 ms per
+slice. The book says the KWS sketch needs PSRAM enabled; this model runs with PSRAM
+disabled (see [the model](#the-model)).
 
 #### How it works
 
@@ -898,13 +896,12 @@ exactly 1.00 s, and not empty. We reviewed them with `tools/kws_clip_review.py`.
 - **This microphone is quieter than the dataset.** The medians for the three word
   classes are -39 to -41 dBFS, against -24 to -25 dBFS for the dataset's clips.
   That is **14 to 17 dB lower**, with the same measurement on both sides (the RMS of
-  a whole 1-second clip). It is the risk we noted earlier, now measured. These
-  recordings were made at one distance and one speaking volume, so the gap is one
-  speaker's, not a property of the microphone.
-- **A fixed gain is not a free fix.** Raising everything by 14 dB would match the
-  medians, but the louder clips would clip: the 90th percentile of the peaks is
-  already -5.7 dBFS for YES and -7.2 for UNKNOWN. Whether a gain helps the model
-  is something to test, not assume (see the next steps).
+  a whole 1-second clip). These recordings were made at one distance and one
+  speaking volume, so the gap is one speaker's, not a property of the microphone.
+  It does not matter for this model (test 05).
+- **No gain is needed.** We had worried that raising the level by 14 dB would clip the
+  louder clips (the 90th percentile of the peaks is already -5.7 dBFS for YES). Test 05
+  shows the model is insensitive to the level, so the question does not arise.
 - **Ten clips look suspicious** out of 150 word clips: `yes.own.003`, `022`,
   `038`, `039`, `047`; `no.own.026`; `unknown.own.001`, `022`, `036`, `046`. The
   reasons are a word that may be cut off, two separate bursts, or a very quiet
@@ -1454,22 +1451,554 @@ lost samples, and the recorder saved six NOISE clips into `/noise/`, each read
 back and verified; we removed those test files afterwards. We have not run a full
 recording session with the fixed sketches yet.
 
+### The model
+
+The model was trained in the Edge Impulse Studio by the author (project
+[XIAO IPS Display - KWS](https://studio.edgeimpulse.com/public/1129422/live), a
+public project) from the dataset plus the recordings from test 03. The library it
+generated is not in this repository. What it contains, read from its files:
+
+- the input is 16,000 samples (1 second at 16 kHz); 13 MFCC coefficients over 50
+  frames, 650 values, go into the network;
+- four classes, in this order: `no`, `noise`, `unknown`, `yes` (alphabetical, so
+  `yes` is index 3);
+- the network is compiled with Edge Impulse's EON compiler and quantized to int8;
+  the working memory it asks for is 6,265 bytes, and the model code is 56 KB, so it
+  needs **no PSRAM** (the book asks for it, for the Sense board's sketch);
+- it detects no anomalies.
+
+The Studio's public page reports **91.5% on the validation set and 87.0% on the test
+set**, and an estimate of 366 ms of latency, 15.4 KB of RAM and 30.8 KB of flash for
+the XIAO ESP32-S3 Plus. We read those numbers from the page and did not reproduce
+the Studio's test.
+
+### Test 04: keyword spotting on the board
+
+Runs the model on the microphone, continuously: the microphone is cut into 250 ms
+slices (test 02), and every slice runs the classifier on the last second of audio.
+The screen shows the detected word in large letters (YES in green, NO in red), a bar
+for each of the four classes, the processing times, and the level. A word is shown
+when YES or NO wins with a score of at least 0.80 (a first guess, not a tuned value),
+and stays on screen for one second.
+
+**Build it with ESP-NN turned off.** The file `build_opt.h` next to the sketch does
+that. It contains one line:
+
+```
+-DEI_CLASSIFIER_TFLITE_ENABLE_ESP_NN=0
+```
+
+Both the Arduino IDE and `arduino-cli` read it. Without it, the model gives wrong
+answers on this board (next section).
+
+**Measured.** The sketch uses 597 KB of flash (28%) and 45 KB of RAM (13%), with
+PSRAM disabled. For each slice, the signal processing takes about 16 to 17 ms and the
+network about 15 ms, so roughly 32 ms of the 250 ms available. In a quiet room the
+class `noise` wins nearly everywhere, but with less certainty than before the fix
+(scores of 0.46 to 0.89), and `unknown` sometimes reaches 0.4 to 0.5. We have not
+measured the live behavior with a voice.
+
+#### How it works
+
+- **The capture is the one from test 02:** two slice buffers filled by a task on core 0.
+- **`numpy::int16_to_float`** hands the slice to Edge Impulse as floats in the int16
+  range. The MFCC block then divides by 32768 itself.
+- **`run_classifier_continuous()`** keeps the earlier slices, so each call classifies
+  the last second. The first full window needs four slices; until then the screen
+  says "warming up".
+- **The labels come from the model,** so the screen shows whatever the four classes
+  are called, in the model's own order.
+
+<!-- sketch: part2_tinyml/04_kws_inference/04_kws_inference.ino -->
+**Sketch:** [`part2_tinyml/04_kws_inference/04_kws_inference.ino`](https://github.com/Mjrovai/XIAO-IPS-Display-ESP32S3/blob/main/part2_tinyml/04_kws_inference/04_kws_inference.ino)
+
+```cpp
+/*
+  Part 2, Test 04 - Keyword spotting on the board (Edge Impulse model)
+
+  Runs the "XIAO IPS Display - KWS" model (classes no, noise, unknown, yes) on the
+  microphone, continuously. It uses the audio front end from test 02: the microphone
+  is cut into 250 ms slices, and every slice runs the classifier on the last
+  second of audio (Edge Impulse's continuous inference).
+
+  Screen: the detected word, a bar for each class, the processing times, and the
+  input level. Serial: one line per slice with the four scores.
+
+  Important: this sketch must be built with ESP-NN turned off. The file build_opt.h next
+  to it does that (-DEI_CLASSIFIER_TFLITE_ENABLE_ESP_NN=0). With ESP-NN on, the quantized
+  network gives wrong answers on the ESP32-S3 with Arduino core 3.3.12 (it called almost
+  everything "noise"), while the same model on a computer was right.
+
+  The library name below is the one Edge Impulse generated for the project. If you
+  train your own, change the include to your library's header.
+*/
+
+#include <Arduino.h>
+#include <driver/i2s_pdm.h>
+#include <XIAO_IPS_Display_-_KWS_inferencing.h>
+#include <Seeed_GFX.h>
+#include "board/boards/XIAO_LCD_Board.h"
+#include "driver/tft/Driver_JD9853A.h"
+#include "panel/Panel_TFT.h"
+
+static constexpr int SLICE = EI_CLASSIFIER_SLICE_SIZE;  // 4000 samples = 250 ms
+static constexpr int CHUNK_SAMPLES = 500;
+static constexpr float DETECT_THRESHOLD = 0.80f;  // a first guess, not a tuned value
+static constexpr uint32_t HOLD_MS = 1000;         // keep a detected word on screen
+
+static constexpr int8_t LCD_RST_PIN = 13;
+static constexpr int8_t LCD_BL_PIN = 12;
+static constexpr gpio_num_t MIC_CLK = GPIO_NUM_1;   // D0
+static constexpr gpio_num_t MIC_DATA = GPIO_NUM_2;  // D1
+
+Seeed_GFX display;
+Seeed_Sprite canvas;
+static i2s_chan_handle_t rx = nullptr;
+
+// ---- Capture: two slice buffers, filled by a task on core 0 ---------------------
+static int16_t sliceBuf[2][SLICE];
+static volatile int readyBuf = -1;
+static volatile uint32_t slicesCaptured = 0;
+static volatile uint32_t overruns = 0;
+
+static void captureTask(void *) {
+  static int16_t chunk[CHUNK_SAMPLES];
+  int cur = 0, fill = 0;
+  size_t got = 0;
+  for (int i = 0; i < 16; i++) i2s_channel_read(rx, chunk, sizeof(chunk), &got, 1000);  // filter settles
+  for (;;) {
+    if (i2s_channel_read(rx, chunk, sizeof(chunk), &got, 1000) != ESP_OK) continue;
+    size_t n = got / sizeof(int16_t);
+    for (size_t i = 0; i < n; i++) {
+      sliceBuf[cur][fill++] = chunk[i];
+      if (fill == SLICE) {
+        if (readyBuf != -1) overruns++;
+        readyBuf = cur;
+        slicesCaptured++;
+        cur ^= 1;
+        fill = 0;
+      }
+    }
+  }
+}
+
+static bool micBegin() {
+  i2s_chan_config_t ch = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
+  ch.dma_desc_num = 8;
+  ch.dma_frame_num = 256;
+  if (i2s_new_channel(&ch, nullptr, &rx) != ESP_OK) return false;
+  i2s_pdm_rx_config_t cfg = {};
+  cfg.clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG(EI_CLASSIFIER_FREQUENCY);
+  cfg.slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
+  cfg.gpio_cfg.clk = MIC_CLK;
+  cfg.gpio_cfg.din = MIC_DATA;
+  if (i2s_channel_init_pdm_rx_mode(rx, &cfg) != ESP_OK) return false;
+  return i2s_channel_enable(rx) == ESP_OK;
+}
+
+// ---- Classifier ----------------------------------------------------------------------
+static const int16_t *currentSlice = nullptr;  // the slice being classified
+// Edge Impulse asks for the slice's samples as floats in the int16 range.
+static int sliceGetData(size_t offset, size_t length, float *out) {
+  numpy::int16_to_float(&currentSlice[offset], out, length);
+  return 0;
+}
+
+static ei_impulse_result_t result;
+static int warmup = EI_CLASSIFIER_SLICES_PER_MODEL_WINDOW;  // a full window is needed first
+static float score[EI_CLASSIFIER_LABEL_COUNT];
+static int topIndex = -1;
+static uint32_t dspMs = 0, nnMs = 0, processed = 0;
+static float levelDb = -90.0f;
+static char heldWord[16] = "";
+static uint32_t heldSince = 0;
+
+static float sliceDb(const int16_t *s, int n) {
+  float mean = 0, sq = 0;
+  for (int i = 0; i < n; i++) mean += s[i];
+  mean /= n;
+  for (int i = 0; i < n; i++) { float v = s[i] - mean; sq += v * v; }
+  float rms = sqrtf(sq / n);
+  return 20.0f * log10f(fmaxf(rms, 1.0f) / 32768.0f);
+}
+
+static void classify(const int16_t *slice) {
+  currentSlice = slice;
+  levelDb = sliceDb(slice, SLICE);
+  signal_t signal;
+  signal.total_length = SLICE;
+  signal.get_data = &sliceGetData;
+  EI_IMPULSE_ERROR err = run_classifier_continuous(&signal, &result, false);
+  if (err != EI_IMPULSE_OK) { Serial.printf("classifier error %d\n", (int)err); return; }
+  processed++;
+  dspMs = result.timing.dsp;
+  nnMs = result.timing.classification;
+  if (warmup > 0) { warmup--; return; }
+  topIndex = 0;
+  for (int i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+    score[i] = result.classification[i].value;
+    if (score[i] > score[topIndex]) topIndex = i;
+  }
+  const char *top = result.classification[topIndex].label;
+  // A word is shown when yes or no wins with enough confidence.
+  if (score[topIndex] >= DETECT_THRESHOLD && (strcmp(top, "yes") == 0 || strcmp(top, "no") == 0)) {
+    snprintf(heldWord, sizeof(heldWord), "%s", top);
+    heldSince = millis();
+  }
+  Serial.printf("slice %lu |", (unsigned long)processed);
+  for (int i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) Serial.printf(" %s %.2f", result.classification[i].label, score[i]);
+  Serial.printf(" | dsp %lu ms nn %lu ms | level %.0f dBFS\n", (unsigned long)dspMs, (unsigned long)nnMs, levelDb);
+}
+
+// ---- Screen --------------------------------------------------------------------------------
+static uint16_t colorOf(const char *label) {
+  if (!strcmp(label, "yes")) return TFT_GREEN;
+  if (!strcmp(label, "no")) return TFT_RED;
+  if (!strcmp(label, "unknown")) return TFT_YELLOW;
+  return TFT_CYAN;
+}
+
+static void draw() {
+  canvas.fillScreen(TFT_BLACK);
+  canvas.setTextSize(2);
+  canvas.setTextColor(TFT_CYAN, TFT_BLACK);
+  canvas.drawCentreString("KEYWORD SPOTTING", 86, 4, 1);
+  char t[40];
+  bool held = heldWord[0] && millis() - heldSince < HOLD_MS;
+  canvas.setTextSize(6);
+  if (warmup > 0) {
+    canvas.setTextSize(2);
+    canvas.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    canvas.drawCentreString("warming up", 86, 56, 1);
+  } else if (held) {
+    canvas.setTextColor(colorOf(heldWord), TFT_BLACK);
+    for (char *c = heldWord; *c; c++) *c = toupper(*c);
+    canvas.drawCentreString(heldWord, 86, 40, 1);
+    for (char *c = heldWord; *c; c++) *c = tolower(*c);
+  } else {
+    canvas.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    canvas.drawCentreString("...", 86, 40, 1);
+  }
+  // One bar per class, in a fixed order.
+  const char *order[] = {"yes", "no", "unknown", "noise"};
+  canvas.setTextSize(2);
+  for (int r = 0; r < 4; r++) {
+    int y = 112 + r * 36;
+    float v = 0;
+    for (int i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
+      // The labels are only filled in once the classifier has run, so check warmup first.
+      if (warmup == 0 && result.classification[i].label && !strcmp(result.classification[i].label, order[r])) v = score[i];
+    canvas.setTextColor(colorOf(order[r]), TFT_BLACK);
+    canvas.setCursor(4, y);
+    canvas.print(order[r]);
+    canvas.drawRect(88, y, 80, 16, TFT_DARKGREY);
+    canvas.fillRect(89, y + 1, (int)(78 * v), 14, colorOf(order[r]));
+    canvas.setTextSize(1);
+    canvas.setTextColor(TFT_WHITE, TFT_BLACK);
+    snprintf(t, sizeof(t), "%.0f%%", v * 100);
+    canvas.setCursor(92, y + 20);
+    canvas.print(t);
+    canvas.setTextSize(2);
+  }
+  canvas.setTextSize(1);
+  canvas.setTextColor(TFT_WHITE, TFT_BLACK);
+  snprintf(t, sizeof(t), "dsp %lu ms  nn %lu ms", (unsigned long)dspMs, (unsigned long)nnMs);
+  canvas.setCursor(4, 262);
+  canvas.print(t);
+  snprintf(t, sizeof(t), "level %.0f dBFS", levelDb);
+  canvas.setCursor(4, 276);
+  canvas.print(t);
+  canvas.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  snprintf(t, sizeof(t), "slices %lu  overruns %lu", (unsigned long)processed, (unsigned long)overruns);
+  canvas.setCursor(4, 292);
+  canvas.print(t);
+  canvas.pushSprite(0, 0);
+}
+
+void setup() {
+  Serial.begin(115200);
+  Serial.setTxTimeoutMs(0);
+  delay(800);
+  if (!display.begin<Board_XIAO_1inch47_Touch_Display<LCD_RST_PIN, LCD_BL_PIN>,
+                     Config_Seeed_1inch47_Touch_JD9853A>()) { Serial.println(display.lastResult().message); return; }
+  canvas.createSprite(display, 172, 320);
+  Serial.printf("model: %s, %d classes, window %d samples, slice %d samples\n", EI_CLASSIFIER_PROJECT_NAME,
+                EI_CLASSIFIER_LABEL_COUNT, EI_CLASSIFIER_RAW_SAMPLE_COUNT, SLICE);
+  run_classifier_init();
+  if (!micBegin()) { Serial.println("mic init FAILED"); return; }
+  xTaskCreatePinnedToCore(captureTask, "audio", 6144, nullptr, configMAX_PRIORITIES - 2, nullptr, 0);
+  draw();
+}
+
+void loop() {
+  if (readyBuf == -1) { delay(2); return; }
+  int idx = readyBuf;
+  classify(sliceBuf[idx]);
+  readyBuf = -1;
+  draw();
+}
+```
+<!-- /sketch -->
+
+### A problem we found: the ESP-NN kernels give wrong answers
+
+**What happened.** The first live attempt classified everything as `noise`. The
+recording showed rhythmic bursts of speech, yet `yes` never went above 0.09. We
+then fed recorded clips to the board over the USB cable (test 05) to take the
+microphone and the room out of the picture. Even the dataset's own clips, which the
+model had been trained on, came out as `noise`: **13 of 48 correct (27%)**, with 0 of
+12 for `yes` and 0 of 12 for `unknown`.
+
+**What we ruled out, in this order:**
+
+1. *The clips arriving damaged.* The board returns a checksum of what it received;
+   all of them matched.
+2. *The way we feed the classifier.* The Edge Impulse source confirms the format:
+   floats in the int16 range, as the sketch does.
+3. *The model.* We built the same library, with the same SDK and the same compiled
+   network, as a program for the Mac. On the same 48 clips it got **44 of 48 (91.7%)**,
+   in line with the Studio's 87 to 91%.
+
+**The cause.** On the ESP32-S3 the SDK turns on two optimized paths by default: ESP-DSP
+(a fast FFT for the signal processing) and ESP-NN (optimized neural-network kernels).
+We turned them off one at a time, with a compile-time flag, and scored the same 48
+clips on the board each time:
+
+| Build | Correct, of 48 |
+|---|---|
+| Default (ESP-DSP on, ESP-NN on) | 13 (27.1%) |
+| ESP-DSP off, ESP-NN on | 13 (27.1%) |
+| **ESP-NN off, ESP-DSP on** | **44 (91.7%)** |
+| ESP-DSP off, ESP-NN off | 44 (91.7%) |
+| The same model on the Mac | 44 (91.7%) |
+
+With ESP-NN off, the board's confusion matrix matches the Mac's cell for cell.
+ESP-DSP is fine, and keeping it makes the signal processing about twice as fast. The
+cost of turning ESP-NN off is that the network takes about 15 ms per slice instead of
+1 to 2 ms. The 1 to 2 ms were fast because they were wrong.
+
+**How far this goes.** We found it with Arduino core 3.3.12, with this one model, and
+with the Edge Impulse SDK inside the library we downloaded. We did not try other cores,
+other SDK versions, or other models, and we do not know if the fault is in the ESP-NN
+code, in how it is built here, or in how it meets this core. The book tells you to
+stay on core 2.0.17 and not update it; that is consistent with a problem in newer
+cores, but we did not test 2.0.17.
+
+### Test 05: replay, a hardware-in-the-loop test
+
+Classifies audio that a computer sends over the USB cable, with the same signal
+processing and the same network as test 04. It is how the problem above was found,
+and it is a good way to test any model on this board without depending on the room.
+It has three commands: `WAVE` (a whole 1-second clip), and `SLCE` and `RSET` (the
+continuous classifier, one 250 ms slice at a time, as in test 04).
+
+The tools on the computer (standard library only, except the program for the Mac):
+
+- `tools/kws_replay.py` sends whole clips and scores them, optionally made louder or
+  quieter. With `--host` it runs the same clips through the program for the Mac.
+- `tools/kws_stream_eval.py` places each clip between two stretches of noise and runs
+  it in continuous mode, applying test 04's rule, on the board (`--port`) or on the
+  Mac.
+- `tools/ei_host_test/` holds the small program that runs the library on the Mac, and
+  `build.py` builds it from the unzipped library.
+
+<!-- sketch: part2_tinyml/05_kws_replay/05_kws_replay.ino -->
+**Sketch:** [`part2_tinyml/05_kws_replay/05_kws_replay.ino`](https://github.com/Mjrovai/XIAO-IPS-Display-ESP32S3/blob/main/part2_tinyml/05_kws_replay/05_kws_replay.ino)
+
+```cpp
+/*
+  Part 2, Test 05 - Keyword spotting replay (hardware-in-the-loop test)
+
+  Classifies audio clips that a computer sends over the USB serial port, using the
+  same Edge Impulse pre-processing and the same quantized network that run on the
+  microphone in test 04. The microphone and the room are taken out of the loop, so
+  you can measure the model on this board with controlled inputs: your own
+  recordings, the dataset's clips, and the same clips made louder or quieter.
+
+  Protocol: the computer sends the 4 bytes "WAVE" followed by 16000 samples of
+  16-bit little-endian audio (32000 bytes, one second at 16 kHz). The board answers
+  with one line:
+    RESULT <label> <score> ... dsp <ms> nn <ms> sum <sum of samples> peak <max abs sample>
+  tools/kws_replay.py does the sending and the counting.
+
+  The classifier for WAVE is run_classifier(): it sees exactly one clip. Two more commands
+  exercise the continuous classifier that test 04 uses:
+    "RSET"                      starts a new stream (resets the continuous state)
+    "SLCE" + 4000 samples       one 250 ms slice; answers  SLICE <label> <score> ...
+  tools/kws_stream_eval.py --port sends a clip between two stretches of noise, slice by
+  slice, and counts the words detected.
+*/
+
+#include <Arduino.h>
+#include <XIAO_IPS_Display_-_KWS_inferencing.h>
+#include <Seeed_GFX.h>
+#include "board/boards/XIAO_LCD_Board.h"
+#include "driver/tft/Driver_JD9853A.h"
+#include "panel/Panel_TFT.h"
+
+static constexpr int N = EI_CLASSIFIER_RAW_SAMPLE_COUNT;  // 16000 samples
+static constexpr int8_t LCD_RST_PIN = 13;
+static constexpr int8_t LCD_BL_PIN = 12;
+
+Seeed_GFX display;
+Seeed_Sprite canvas;
+static int16_t clip[N];
+static int16_t sliceBuf[EI_CLASSIFIER_SLICE_SIZE];
+static uint32_t received = 0;
+static char lastLine[48] = "waiting for clips";
+
+static int clipGetData(size_t offset, size_t length, float *out) {
+  numpy::int16_to_float(&clip[offset], out, length);
+  return 0;
+}
+
+static int sliceGetData(size_t offset, size_t length, float *out) {
+  numpy::int16_to_float(&sliceBuf[offset], out, length);
+  return 0;
+}
+
+static void draw() {
+  canvas.fillScreen(TFT_BLACK);
+  canvas.setTextSize(2);
+  canvas.setTextColor(TFT_CYAN, TFT_BLACK);
+  canvas.drawCentreString("KWS REPLAY", 86, 6, 1);
+  canvas.setTextColor(TFT_WHITE, TFT_BLACK);
+  char t[32];
+  snprintf(t, sizeof(t), "%lu clips", (unsigned long)received);
+  canvas.drawCentreString(t, 86, 60, 1);
+  canvas.setTextSize(1);
+  canvas.drawCentreString(lastLine, 86, 110, 1);
+  canvas.pushSprite(0, 0);
+}
+
+// Read exactly n bytes, or give up after timeoutMs without progress.
+static bool readExact(uint8_t *dst, size_t n, uint32_t timeoutMs) {
+  size_t got = 0;
+  uint32_t last = millis();
+  while (got < n) {
+    int avail = Serial.available();
+    if (avail > 0) {
+      got += Serial.readBytes(dst + got, min((size_t)avail, n - got));
+      last = millis();
+    } else if (millis() - last > timeoutMs) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void setup() {
+  Serial.setRxBufferSize(40000);  // a whole clip fits, so the computer never waits on us
+  Serial.begin(115200);
+  Serial.setTxTimeoutMs(0);
+  delay(800);
+  if (display.begin<Board_XIAO_1inch47_Touch_Display<LCD_RST_PIN, LCD_BL_PIN>,
+                    Config_Seeed_1inch47_Touch_JD9853A>()) {
+    canvas.createSprite(display, 172, 320);
+    draw();
+  }
+  run_classifier_init();
+  Serial.printf("READY replay %s %d samples\n", EI_CLASSIFIER_PROJECT_NAME, N);
+}
+
+static void answerWave() {
+  if (!readExact((uint8_t *)clip, N * sizeof(int16_t), 3000)) { Serial.println("ERROR timeout while reading the clip"); return; }
+  signal_t signal;
+  signal.total_length = N;
+  signal.get_data = &clipGetData;
+  ei_impulse_result_t result = {0};
+  EI_IMPULSE_ERROR err = run_classifier(&signal, &result, false);
+  if (err != EI_IMPULSE_OK) { Serial.printf("ERROR classifier %d\n", (int)err); return; }
+  Serial.print("RESULT");
+  int top = 0;
+  for (int i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+    Serial.printf(" %s %.3f", result.classification[i].label, result.classification[i].value);
+    if (result.classification[i].value > result.classification[top].value) top = i;
+  }
+  // A checksum and the peak of what arrived, so the computer can tell whether the clip
+  // was received intact.
+  int32_t sum = 0; int peak = 0;
+  for (int i = 0; i < N; i++) { sum += clip[i]; if (abs(clip[i]) > peak) peak = abs(clip[i]); }
+  Serial.printf(" dsp %lu nn %lu sum %ld peak %d\n", (unsigned long)result.timing.dsp,
+                (unsigned long)result.timing.classification, (long)sum, peak);
+  received++;
+  snprintf(lastLine, sizeof(lastLine), "%s %.2f", result.classification[top].label, result.classification[top].value);
+  if (received % 10 == 0) draw();  // the screen is slow; refresh every tenth clip
+}
+
+static void answerSlice() {
+  const int n = EI_CLASSIFIER_SLICE_SIZE;
+  if (!readExact((uint8_t *)sliceBuf, n * sizeof(int16_t), 3000)) { Serial.println("ERROR timeout while reading the slice"); return; }
+  signal_t signal;
+  signal.total_length = n;
+  signal.get_data = &sliceGetData;
+  ei_impulse_result_t result = {0};
+  EI_IMPULSE_ERROR err = run_classifier_continuous(&signal, &result, false);
+  if (err != EI_IMPULSE_OK) { Serial.printf("ERROR classifier %d\n", (int)err); return; }
+  Serial.print("SLICE");
+  for (int i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) Serial.printf(" %s %.3f", result.classification[i].label, result.classification[i].value);
+  Serial.println();
+}
+
+void loop() {
+  // Keep the last 4 bytes; a command is a 4-letter marker: WAVE, SLCE, or RSET.
+  static uint8_t win[4] = {0, 0, 0, 0};
+  while (Serial.available()) {
+    win[0] = win[1]; win[1] = win[2]; win[2] = win[3]; win[3] = (uint8_t)Serial.read();
+    if (!memcmp(win, "WAVE", 4)) { memset(win, 0, 4); answerWave(); }
+    else if (!memcmp(win, "SLCE", 4)) { memset(win, 0, 4); answerSlice(); }
+    else if (!memcmp(win, "RSET", 4)) { memset(win, 0, 4); run_classifier_init(); Serial.println("RESET ok"); }
+  }
+}
+```
+<!-- /sketch -->
+
+### What the model does on the board, measured with recorded clips
+
+**Whole clips, on your own test clips** (68 clips never used in training: 16 `no`,
+22 `noise`, 15 `unknown`, 15 `yes`): **58 correct (85.3%)**, identical on the board
+and on the Mac. Recall by class: `no` 93.8%, `yes` 93.3%, `unknown` 80.0%, `noise`
+77.3%.
+
+**Continuous mode, as in the live sketch.** Each clip sits between two stretches of
+your room noise, and a clip counts as a detection when YES or NO wins with at least
+0.80 in some slice:
+
+| Clips | `yes` detected | `no` detected | False alarms on `noise` | False alarms on `unknown` |
+|---|---|---|---|---|
+| Your 68 test clips | 93.3% (14 of 15) | 93.8% (15 of 16) | 0% (0 of 22) | 20% (3 of 15) |
+| 400 dataset clips (100 per class) | 84% | 84% | 0% | 10% |
+
+The board and the Mac gave **the same table, cell for cell, on all 468 clips.** The
+dataset row is optimistic, because many of its clips were used in training; the first
+row is the fairer one. With 15 or 16 clips per word, one clip moves a percentage by
+about 6 points. On the Mac only, with your test clips, the threshold is a trade-off:
+at 0.6, `no` is detected 100% of the time but the false alarms on `unknown` rise to
+26.7%; at 0.9, `no` falls to 75% and those false alarms to 6.7%.
+
+**The level does not matter.** The scores for a clip were identical, to three
+decimals, from +12 dB louder to 36 dB quieter. On the board, whole-clip accuracy was
+the same at +0, +6, and +12 dB. A likely reason, which we have read in the code but
+not isolated with an experiment: the MFCC block normalizes the coefficients over a
+sliding window (its `win_size` is 101), which removes a constant gain, and the
+network's outputs are quantized in steps of about 0.004.
+
+**What is still unmeasured: the microphone and the room.** Everything above uses
+recorded clips. The first live attempt, with ESP-NN on, never worked (see above). A
+second one, with ESP-NN off, had no speech in it (the loudest slice was -48 dBFS), so
+it proves nothing. The live test with a voice is still to do.
+
 ### Next steps for keyword spotting
 
-1. Upload the four dataset folders to a new Edge Impulse project, with *Data acquisition,
-   Upload existing data*, inferring the label from the file name and letting the
-   Studio split training and test data (as in the book).
-   Then upload your own clips prepared by `tools/kws_prepare_upload.py`: the
-   `train/` folders to the *Training* category and the `test/` folders to the
-   *Testing* category. Listen to the `review/` clips first and decide which, if
-   any, to add.
-2. Build the impulse with the book's settings: 1-second windows, MFCC features, and a small 1D convolutional
-   network (two Conv1D and pooling blocks with 8 and 16 filters, dropout 0.25,
-   learning rate 0.005, 100 epochs, noise augmentation).
-3. Test, then deploy as an Arduino library (quantized, int8).
-   Also test the model on your own clips, kept out of training, and compare it with
-   the same clips made louder by 6 dB and by 12 dB (limited so they do not clip)
-   to learn whether a gain on the microphone helps. That is an experiment to run,
-   not a result.
-4. Replace `process()` with the Edge Impulse classifier, and show the detected
-   word and its confidence on the display.
+1. **The live test with a voice** on the board, with the model that works: say YES and
+   NO about ten times each, then ten other words, in separate blocks, and compare the
+   serial log with what you said. This is the measurement that is still missing.
+2. **Tune the detection rule.** The threshold of 0.80 is a guess. On your test clips
+   it misses about 6% of the words and `unknown` triggers a word 20% of the time. A
+   rule that asks for two slices in a row, or a different threshold for each word,
+   might do better; test it on recorded clips first, with the tools above.
+3. **Find out if the ESP-NN problem is the core.** Build the same replay sketch on core
+   2.0.17 (the book's version), in a separate setup so that your installation is not
+   changed. It would say whether the fault comes from the newer core.
+4. **Wake-word use.** A single word is not a wake word; a real one needs a model made
+   for it, trained to reject speech that is not the word.

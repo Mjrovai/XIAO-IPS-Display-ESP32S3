@@ -2300,6 +2300,10 @@ tools/
   gray_ramp_reference.png  the same eight gray levels, to open on a Mac for the color comparison
   kws_dataset_check.py  checks a keyword dataset folder (formats, lengths, levels)
   kws_clip_review.py  reviews your own keyword clips and flags suspicious ones
+  kws_prepare_upload.py  gathers your clips into train/test/review folders
+  kws_replay.py       sends clips to the board (or a Mac build) and scores the answers
+  kws_stream_eval.py  scores the keyword model in continuous mode, on the board or the Mac
+  ei_host_test/       builds an Edge Impulse library as a program for the Mac
 part2_tinyml/         Part 2: TinyML with Edge Impulse (in progress)
 xiao_esp32s3_147_hello/   the first "Hello, XIAO" sketch
 ```
