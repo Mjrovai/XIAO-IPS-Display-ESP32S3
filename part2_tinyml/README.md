@@ -1499,6 +1499,14 @@ class `noise` wins nearly everywhere, but with less certainty than before the fi
 (scores of 0.46 to 0.89), and `unknown` sometimes reaches 0.4 to 0.5. We have not
 measured the live behavior with a voice.
 
+![Three states of the live sketch: YES detected, NO shown while the bars still read 44 percent, and listening with unknown at 93 percent](images/kws_live_states.jpg)
+
+*Left: a clean YES, with the YES bar at 100%. Middle: NO is shown while the bars read
+no 44%, unknown 39%. The word is kept on screen for one second after the detection,
+while the bars show the current scores. Right: no word, `unknown` at 93%. In these
+photos the title was cut off at both edges and the idle state showed three squares;
+the sketch now says KEYWORDS and "listening".*
+
 #### How it works
 
 - **The capture is the one from test 02:** two slice buffers filled by a task on core 0.
@@ -1663,7 +1671,7 @@ static void draw() {
   canvas.fillScreen(TFT_BLACK);
   canvas.setTextSize(2);
   canvas.setTextColor(TFT_CYAN, TFT_BLACK);
-  canvas.drawCentreString("KEYWORD SPOTTING", 86, 4, 1);
+  canvas.drawCentreString("KEYWORDS", 86, 4, 1);  // 16 characters at this size would not fit in 172 pixels
   char t[40];
   bool held = heldWord[0] && millis() - heldSince < HOLD_MS;
   canvas.setTextSize(6);
@@ -1677,8 +1685,9 @@ static void draw() {
     canvas.drawCentreString(heldWord, 86, 40, 1);
     for (char *c = heldWord; *c; c++) *c = tolower(*c);
   } else {
-    canvas.setTextColor(TFT_DARKGREY, TFT_BLACK);
-    canvas.drawCentreString("...", 86, 40, 1);
+    canvas.setTextSize(2);
+    canvas.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    canvas.drawCentreString("listening", 86, 56, 1);
   }
   // One bar per class, in a fixed order.
   const char *order[] = {"yes", "no", "unknown", "noise"};
@@ -2010,12 +2019,35 @@ What attempt 3 shows:
   yes`. A rule that asks for two slices in a row would hide those flickers; we have not
   tried it.
 
+The author's own description of the same test, from watching the screen: YES was almost
+always right, and some other words gave a false NO. That agrees with the 20% false alarms
+on `unknown` clips measured above, which went mostly to `no`.
+
 What it does **not** show: an accuracy per word. The exact order and number of the words
 spoken, with their times, were not recorded, so we cannot say how many `yes` were missed
 or how many `no` were taken for `yes`. For that number, the test needs ground truth, for
 example a cue (a beep) before every word, logged on the computer, so that each detection
 can be matched to what was asked. The measurements on recorded clips above remain the
 reliable numbers.
+
+### The live test with ground truth
+
+`tools/kws_cued_test.py` gives the live test a known answer. It plays a sound file of
+beeps on the computer's speakers; the pattern says which word to say, right after it:
+one low beep for YES, two middle beeps for NO, three high beeps for any other word. The
+30 cues (10 of each kind, in a random order, 5 seconds apart) are known exactly, and the
+tool logs what the board answers, with the time of every answer. Then it matches each
+detection to the word that was asked, and counts hits, misses, wrong words, and false
+alarms, with 95% confidence intervals. With only 10 cues per word, those intervals are
+wide: 9 of 10 correct is compatible with anything from about 60% to 98%.
+
+Two things it tells apart: detections that fall during the beeps (the cue itself fooling
+the model, since the microphone hears the beeps) and detections in the quiet gaps. It
+also reports a looser reading, in which, when both words flashed during one cue, the one
+with the highest score counts as the answer. We checked the analysis on made-up runs with
+a known number of planted errors, and it counted them correctly.
+
+**Results of the cued test: to be added.**
 
 ### Next steps for keyword spotting
 

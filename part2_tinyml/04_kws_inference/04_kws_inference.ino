@@ -147,7 +147,7 @@ static void draw() {
   canvas.fillScreen(TFT_BLACK);
   canvas.setTextSize(2);
   canvas.setTextColor(TFT_CYAN, TFT_BLACK);
-  canvas.drawCentreString("KEYWORD SPOTTING", 86, 4, 1);
+  canvas.drawCentreString("KEYWORDS", 86, 4, 1);  // 16 characters at this size would not fit in 172 pixels
   char t[40];
   bool held = heldWord[0] && millis() - heldSince < HOLD_MS;
   canvas.setTextSize(6);
@@ -161,8 +161,9 @@ static void draw() {
     canvas.drawCentreString(heldWord, 86, 40, 1);
     for (char *c = heldWord; *c; c++) *c = tolower(*c);
   } else {
-    canvas.setTextColor(TFT_DARKGREY, TFT_BLACK);
-    canvas.drawCentreString("...", 86, 40, 1);
+    canvas.setTextSize(2);
+    canvas.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    canvas.drawCentreString("listening", 86, 56, 1);
   }
   // One bar per class, in a fixed order.
   const char *order[] = {"yes", "no", "unknown", "noise"};

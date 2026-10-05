@@ -2303,6 +2303,7 @@ tools/
   kws_prepare_upload.py  gathers your clips into train/test/review folders
   kws_replay.py       sends clips to the board (or a Mac build) and scores the answers
   kws_stream_eval.py  scores the keyword model in continuous mode, on the board or the Mac
+  kws_cued_test.py    live keyword test with beep cues, so every word spoken is known
   ei_host_test/       builds an Edge Impulse library as a program for the Mac
 part2_tinyml/         Part 2: TinyML with Edge Impulse (in progress)
 xiao_esp32s3_147_hello/   the first "Hello, XIAO" sketch
