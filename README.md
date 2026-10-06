@@ -2299,6 +2299,7 @@ tools/
   update_listings.py  refreshes the code listings in the READMEs from the sketches
   gray_ramp_reference.png  the same eight gray levels, to open on a Mac for the color comparison
   kws_dataset_check.py  checks a keyword dataset folder (formats, lengths, levels)
+  motion_dataset_check.py  checks the motion CSV files from the IMU logger (rows, timing, per-class motion)
   kws_clip_review.py  reviews your own keyword clips and flags suspicious ones
   kws_prepare_upload.py  gathers your clips into train/test/review folders
   kws_replay.py       sends clips to the board (or a Mac build) and scores the answers
