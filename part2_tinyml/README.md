@@ -1513,8 +1513,9 @@ answers on this board (next section).
 PSRAM disabled. For each slice, the signal processing takes about 16 to 17 ms and the
 network about 15 ms, so roughly 32 ms of the 250 ms available. In a quiet room the
 class `noise` wins nearly everywhere, but with less certainty than before the fix
-(scores of 0.46 to 0.89), and `unknown` sometimes reaches 0.4 to 0.5. We have not
-measured the live behavior with a voice.
+(scores of 0.46 to 0.89), and `unknown` sometimes reaches 0.4 to 0.5. Live behavior with a
+voice is in "The live test with a voice" and "The live test with ground truth"
+below.
 
 ![Four states of the live sketch: YES detected, NO detected, listening with unknown at 92 percent, and NO still shown while the bars read 44 percent](../images/kws_live_states.jpg)
 
