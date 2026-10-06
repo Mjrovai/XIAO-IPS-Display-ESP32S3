@@ -7,7 +7,7 @@ Spotting (KWS)*. The book uses the XIAOML Kit; here the same labs run on the
 XIAO IPS Display (ESP32-S3) boards. The vision chapters do not apply, because
 these boards have no camera.
 
-**Status: in progress.** Keyword spotting: a model was trained in the Edge Impulse
+**Status: working, with open questions.** Keyword spotting: a model was trained in the Edge Impulse
 Studio and runs on the board, it classifies recorded clips correctly there, and a first
 live test with a voice shows it detecting YES and NO. A cued test (beeps tell the speaker
 which word to say) gave, with few cues: YES 7 of 11, NO 9 of 9, other words 8 of 10 correct.
@@ -15,6 +15,10 @@ Motion: 48 samples were recorded with the logger, a model
 was trained in the Studio (98.48% on its test set), and it runs on the board; a first live
 test with the board in hand classified each of the four movements correctly. A blind test
 is still to do.
+
+The test numbers follow the order in which we built them: test 01 (the logger) and test
+06 (motion on the board) belong to motion, and tests 02 to 05 to keyword spotting. Part 3
+continues with test 07.
 
 ## What is different from the book
 
@@ -33,8 +37,8 @@ library (2.0.7) the defaults are **+/-16 g and +/-2000 dps**. The book's code
 still works, because the library scales the readings to g correctly, but the
 resolution is eight times coarser, and the book's inference code clips at 2 g
 anyway. The sketches here set +/-2 g and +/-245 dps (the library offers 245,
-not 250) explicitly, in both the data logger and, later, the inference sketch,
-so training and inference see the same scale.
+not 250) explicitly, in both the data logger (test 01) and the inference sketch
+(test 06), so training and inference see the same scale.
 
 ## Motion classification
 
@@ -76,8 +80,8 @@ gyroscope columns are there for you to try.
 samples, timestamps from 0 to 9980 ms in steps of exactly 20 ms, and a time
 between samples that varied from 19.75 to 20.22 ms (about 1% around 20 ms).
 The mean magnitude of the acceleration was 9.72 m/s2 (0.99 g), and the
-gyroscope showed a bias of 1 to 2 degrees per second. We did not test it in
-motion or outside the lab.
+gyroscope showed a bias of 1 to 2 degrees per second. The 48 files of the dataset
+below were recorded with it, in motion, and passed the same checks.
 
 #### How it works
 
@@ -873,8 +877,9 @@ void loop() {
 
 **Status:** the model is trained and runs on the board. Replaying recorded clips on
 the device gives the same answers as the same model on a computer (tests 04 and 05).
-A first live test with a voice, on the board's own microphone, now works (see
-[the live test](#the-live-test-with-a-voice)). Finding why the first attempt failed took a detour through a bug in
+A first live test with a voice, on the board's own microphone, works (see
+[the live test](#the-live-test-with-a-voice)), and a test with beep cues measured it (see
+[the cued test](#the-live-test-with-ground-truth)). Finding why the first attempt failed took a detour through a bug in
 the optimized neural-network kernels (see [A problem we found](#a-problem-we-found-the-esp-nn-kernels-give-wrong-answers)).
 
 The book uses four classes, **yes**, **no**, **noise**, and **unknown**, from the
@@ -1190,9 +1195,9 @@ expect them to change the model much; their main value is the test.
 
 **Measured.** The save path was tested with the NOISE class: six clips were saved,
 each 32,044 bytes (a 44-byte header plus 32,000 bytes of audio) and each read back
-from the card and compared with what was captured. **Word detection has not been
-tested with a voice yet.** The thresholds (a two-frame trigger, a 15 dB margin
-above the background) are first guesses.
+from the card and compared with what was captured. Word detection was
+tried with a voice in the first session (next). The thresholds (a two-frame trigger,
+a 15 dB margin above the background) are first guesses.
 
 ![The recorder in two states: LISTENING with the previous clip yes.own.041.wav saved, and SAVED with yes.own.033.wav and its waveform](../images/kws_recorder_states.jpg)
 
@@ -2387,7 +2392,7 @@ a known number of planted errors, and it counted them correctly.
 
 **Results of one run** (Arduino core 3.3.12, ESP-NN off, the board's own microphone, one
 speaker, one room, 30 cues in about 2 minutes 40 seconds). The speaker reported afterwards
-that on cue 1, which asked for NO, he said YES by mistake. We used that report to correct
+that on cue 1, which asked for NO, they said YES by mistake. We used that report to correct
 the ground truth (`--said 1=yes`), so the run counts 11 YES, 9 NO, and 10 other words. The
 rule is the sketch's: YES or NO winning with at least 0.80.
 
@@ -2415,8 +2420,8 @@ rule is the sketch's: YES or NO winning with at least 0.80.
 
 **How far to trust it.** Ten cues per word is few: the intervals above are wide, and YES at
 64% is compatible with anything from about 35% to 85%. It is one speaker, one session, one
-distance. The first YES-on-a-NO-cue shows the ground truth can have errors: we corrected the
-one the speaker noticed, and there may be others he did not. The alignment between the beeps
+distance. Cue 1 (asked for NO, answered with YES) shows the ground truth can have errors: we corrected
+the one the speaker noticed, and there may be others they did not. The alignment between the beeps
 and the board's answers was moderate (a correlation of 0.58 between loudness and the beeps).
 Offline, on the author's own clips, YES was detected 93% of the time (14 of 15); live it was
 64% (7 of 11). The intervals overlap, so we cannot say the two differ, but the live number is
