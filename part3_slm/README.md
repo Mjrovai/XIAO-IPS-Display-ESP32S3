@@ -1,3 +1,95 @@
+# Part 3: a tiny language model on the board
+
+A language model with 260,000 parameters generates short children's stories on the
+ESP32-S3, one token at a time, and the text appears on the 1.47" screen as it is
+written. It is far too small to be useful, and that is the point of the lesson: it
+shows, in a few hundred lines of C++, everything a large language model does, with a model
+small enough to read, run, and check by hand.
+
+![The board showing a story it generated, in big letters, with 512 tokens done at 12.5 tokens per second](../images/slm_story_screen.jpg)
+
+*The screen after a story of 512 tokens. The last line shows the speed measured while
+the model was running.*
+
+## What you need
+
+- The 1.47" touch board, with **PSRAM turned on**: in the Arduino IDE, Tools, PSRAM,
+  OPI PSRAM (with `arduino-cli`, the board string ends in `:PSRAM=opi`). The default is
+  *Disabled*, and then the sketch stops with a message, because the weights do not fit
+  in the internal RAM.
+- A microSD card (FAT) with a folder `slm` holding two files, in the root of the card:
+  `/slm/stories260K.bin` (the weights) and `/slm/tok512.bin` (the tokenizer).
+
+The two files are Andrej Karpathy's, from
+[huggingface.co/karpathy/tinyllamas](https://huggingface.co/karpathy/tinyllamas), folder
+`stories260K`. They are not in this repository; download them from there. The copies used
+for the measurements below had these sizes and SHA-256 sums:
+
+| File | Bytes | SHA-256 |
+|---|---|---|
+| `stories260K.bin` | 1,056,540 | `b0a507e7ad0f626624f17112325e66691f9076d622e1d3274d103d00299f2696` |
+| `tok512.bin` | 6,227 | `037cb335abb25d1fa9e8ecae30ed2a3a8ace9302862ebcdc05d51a6bbb10c312` |
+
+## Credits
+
+The model, the tokenizer, and the file format come from Andrej Karpathy's
+[llama2.c](https://github.com/karpathy/llama2.c) project (MIT license) and its
+[tinyllamas](https://huggingface.co/karpathy/tinyllamas) models, trained on the
+TinyStories data set. The sketch in this repository is a port of llama2.c's inference code
+to the Arduino environment, and the Python check in `tools/slm_reference.py` is a second,
+independent implementation of the same model. Both were written by Claude Sonnet 5.5
+(Anthropic) under the author's direction, and the author ran, checked, and photographed
+them on the board.
+
+## The model
+
+Read from the header of the file:
+
+| | |
+|---|---|
+| Embedding size (`dim`) | 64 |
+| Layers | 5 |
+| Attention heads | 8 (4 for the keys and values) |
+| Feed-forward size | 172 |
+| Vocabulary | 512 tokens |
+| Context | 512 tokens |
+| Parameters | 264,128, stored as 32-bit floats |
+
+The file is 1,056,540 bytes: 28 bytes of header and 1,056,512 bytes of weights, which
+is exactly 264,128 values of 4 bytes. The match with the count we computed from the header
+is how we know the file format was read correctly.
+
+**Memory.** After loading, 1,824,316 bytes of the PSRAM are in use (6.44 MB of the 8.26 MB
+that the board reports are still free). The weights are 1.06 MB; the cache of the attention
+layers (the keys and values of every position, 5 layers by 512 positions) is 655,360 bytes;
+the rest is the tokenizer and the working buffers. The sketch leaves most of the internal heap free (about 340 KB at the benchmark).
+
+## Test 07: tell a story
+
+The sketch loads the weights from the card into PSRAM and generates a story. The first
+token is the "beginning of text" mark; then each step runs the whole network once to get
+a score for each of the 512 tokens, picks one, and feeds it back in.
+
+**Controls**
+
+- **USR1** tells a new story, or stops the one being told.
+- **USR2** changes the beginning of the story (the *prompt*): none, "Once upon a time",
+  "One day, a little girl", "Tom and Lily", or "The big dog". The new beginning appears in
+  big letters; press USR1 to continue it.
+- **Touch:** drag up or down to scroll, and tap to switch between big letters (14 per
+  line) and small letters (28 per line). While a story is being written the screen follows
+  the newest text; scroll up to read, and scroll back to the end to follow again.
+- **Serial** (115200): the story as text, then a line with the speed. Two commands: `b`
+  runs a benchmark, and `g <text>` decodes greedily and prints the token numbers (used for
+  the check below).
+
+The words are chosen with a temperature of 0.9 and top-p of 0.9: the model draws among the
+most likely tokens, so every story is different.
+
+<!-- sketch: part3_slm/07_slm_stories/07_slm_stories.ino -->
+**Sketch:** [`part3_slm/07_slm_stories/07_slm_stories.ino`](https://github.com/Mjrovai/XIAO-IPS-Display-ESP32S3/blob/main/part3_slm/07_slm_stories/07_slm_stories.ino)
+
+```cpp
 /*
   Part 3, Test 07 - A tiny language model on the board (stories260K)
 
@@ -582,3 +674,85 @@ void loop() {
   if (!b1) wasPressed1 = false;
   delay(20);
 }
+```
+<!-- /sketch -->
+
+#### How it works
+
+- **The tokenizer** turns text into numbers. The 512 tokens are letters and common pieces
+  of words (the file `tok512.bin` has them with a score each). The text is cut into letters
+  and then the best-scoring pairs are merged until none is left. The reverse is a table
+  lookup. A token such as `<0x0A>` is a raw byte (here, a new line).
+- **One step of the network** (`forward`): look up the embedding of the token (64 numbers),
+  then for each of the 5 layers: normalize; compute the query, key, and value; rotate them by
+  an angle that depends on the position (RoPE); store the key and value in the cache; let
+  each of the 8 heads compare its query with all the keys so far and mix the values by
+  those scores (attention); add the result back; then a feed-forward block with the SwiGLU
+  activation, added back too. At the end, the 64 numbers are multiplied by the embedding
+  table to give 512 scores.
+- **The cache** is why a step does not recompute the past: the keys and values of earlier
+  positions are kept. It is also why a step takes longer the further the story goes, as
+  the attention has more positions to look at.
+- **Choosing** the token: with a temperature of 0 it is always the highest score; with a
+  higher temperature it is drawn from the softmax of the scores, cutting off the unlikely
+  tail (top-p).
+- **Everything is plain float code**, no libraries and no optimization of the inner loops,
+  to be readable.
+
+## Is it right? A check against a second implementation
+
+A port can run and still be wrong, and a 260K-parameter model would write odd stories
+either way. So the check does not look at the text. `tools/slm_reference.py` runs the same
+model in Python (numpy), written separately, with greedy decoding (always the highest
+score). The command `g ` on the board does the same.
+
+For the empty prompt, the first 64 tokens were **the same on the board and in numpy,
+all 64 of 64**. This checks the whole path (file format, tokenizer, attention, the cache,
+and the feed-forward block) for that prompt. We did not run other prompts through the
+check. The sampling (temperature and top-p) is not checked by it, since greedy decoding
+does not use it.
+
+```bash
+python3 tools/slm_reference.py ~/datasets/slm/stories260K.bin ~/datasets/slm/tok512.bin "" --steps 64
+```
+
+## Speed
+
+All numbers are the time spent in the network only, not drawing on the screen.
+
+| What | Tokens per second |
+|---|---|
+| Greedy, the first 64 tokens | 30.5 |
+| Benchmark (`b`): 200 tokens, fixed seed | 21.7 |
+| A full story of 512 tokens | 12.5 to 12.6 |
+
+The speed falls as the story grows, because each step attends to all the positions before
+it. The first token needs only one position; the 512th needs 512. We did not try to make it
+faster: the weights are read from PSRAM, which is slower than the internal RAM; the code does
+not use the second core; and the weights are 32-bit floats, where 8-bit weights would be
+four times smaller. These are the places to look.
+
+## What the stories are like
+
+A model this small writes grammatical sentences in the style of a children's story and
+loses the thread within a paragraph. This is a story the board wrote from the empty
+prompt (the model's own words, with an ordinary run of the sketch):
+
+> Once upon a time, there was a little girl named Lily. She loved to jump, but it was her
+> favorite ice cream. One day, Lily was very impressive and decided to clean up her room.
+> She asked her mommy, "Why are you sad?"
+
+The first sentence is a typical opening for this kind of story. After that
+the sentences are fine one by one, but they do not follow from each other ("it was her
+favorite ice cream"; "very impressive"). Larger models with the same design do much better;
+this one shows the machinery and its limits. The training data set is TinyStories, made of
+very simple stories, which is why such a small model can write anything readable at all.
+
+## Next steps
+
+1. **Make it faster.** Try the second core, keep the hot buffers in internal RAM, or
+   quantize the weights to 8 bits. Check every change against `tools/slm_reference.py`.
+2. **Compare the other model sizes** of the same family (a model of 15 million
+   parameters would need about 60 MB as 32-bit floats, which does not fit in the 8 MB of PSRAM).
+3. **Let the user type the beginning**, with a serial command, instead of the five fixed
+   prompts.

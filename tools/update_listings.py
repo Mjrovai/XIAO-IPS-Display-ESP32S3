@@ -16,7 +16,7 @@ import sys
 REPO = "https://github.com/Mjrovai/XIAO-IPS-Display-ESP32S3"
 BRANCH = "main"
 
-FILES = ["README.md", "part2_tinyml/README.md"]
+FILES = ["README.md", "part2_tinyml/README.md", "part3_slm/README.md"]
 pattern = re.compile(r"(<!-- sketch: (\S+) -->\n).*?(<!-- /sketch -->)", re.S)
 
 

@@ -2252,8 +2252,9 @@ audio clips; see
 - **Part 2, TinyML (in progress):** collect labeled IMU data and classify motion
   on the device; collect microphone audio and run keyword spotting. It follows
   the author's book *TinyML Made Easy*. See [part2_tinyml](part2_tinyml/README.md).
-- **Part 3, a tiny language model:** run a very small model on the ESP32-S3 with
-  the weights in PSRAM, and show the generated text on the screen.
+- **Part 3, a tiny language model (working):** a 260,000-parameter model writes short
+  stories on the ESP32-S3, with the weights in PSRAM, and the text appears on the screen
+  at about 12 to 30 tokens per second. See [part3_slm](part3_slm/README.md).
 
 ## License
 
@@ -2301,6 +2302,7 @@ tools/
   kws_dataset_check.py  checks a keyword dataset folder (formats, lengths, levels)
   motion_dataset_check.py  checks the motion CSV files from the IMU logger (rows, timing, per-class motion)
   motion_replay.py  sends windows from the motion CSV files to the board and scores its answers
+  slm_reference.py  runs stories260K in numpy, to check the sketch token by token
   kws_clip_review.py  reviews your own keyword clips and flags suspicious ones
   kws_prepare_upload.py  gathers your clips into train/test/review folders
   kws_replay.py       sends clips to the board (or a Mac build) and scores the answers
@@ -2308,5 +2310,6 @@ tools/
   kws_cued_test.py    live keyword test with beep cues, so every word spoken is known
   ei_host_test/       builds an Edge Impulse library as a program for the Mac
 part2_tinyml/         Part 2: TinyML with Edge Impulse (in progress)
+part3_slm/            Part 3: a tiny language model (stories260K)
 xiao_esp32s3_147_hello/   the first "Hello, XIAO" sketch
 ```
