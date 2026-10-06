@@ -64,6 +64,10 @@ that the board reports are still free). The weights are 1.06 MB; the cache of th
 layers (the keys and values of every position, 5 layers by 512 positions) is 655,360 bytes;
 the rest is the tokenizer and the working buffers. The sketch leaves most of the internal heap free (about 340 KB at the benchmark).
 
+![The path of one token through stories260K: the embedding table, five identical blocks of attention and feed-forward, and the output scores; below, where the weights are](../images/slm_model_diagram.png)
+
+*The model on one page. Every token goes through the same five blocks, each with its own weights. The numbers come from the file header and from counting the weights of each part: the feed-forward layers hold almost two thirds of them, and the attention layers hold about a quarter. The two small position tables that the old file format still carries (4,096 values together) are not used by this code.*
+
 ## Test 07: tell a story
 
 The sketch loads the weights from the card into PSRAM and generates a story. The first
@@ -678,6 +682,10 @@ void loop() {
 <!-- /sketch -->
 
 #### How it works
+
+![How the board writes a story: the prompt is turned into tokens, the forward pass gives a score for each of the 512 tokens, one is chosen and shown, and it is fed back in](../images/slm_generation_diagram.png)
+
+*The loop that writes a story. The prompt is read first, token by token, and then the model's own choices are fed back in, one per step, until it chooses the end mark or the context of 512 tokens is full.*
 
 - **The tokenizer** turns text into numbers. The 512 tokens are letters and common pieces
   of words (the file `tok512.bin` has them with a score each). The text is cut into letters
