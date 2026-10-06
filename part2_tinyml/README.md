@@ -58,6 +58,13 @@ needed while recording, so the board can ride in a bag, a car, or a cart.
    itself. Press USR1 during a recording to abort it; the partial file is
    deleted.
 
+![The IMU logger: recording an idle sample, and the class screen after 12 samples of each class](../images/imu_logger_states.jpg)
+
+*Left: recording `idle/idle.003.csv`, 310 of 500 samples done. Right: the class
+screen after the dataset was recorded, with 12 samples saved in each of the four
+classes. The line at the bottom shows the rate, the sample length, and the free
+space on the card.*
+
 **The CSV format:** `timestamp,accX,accY,accZ,gyrX,gyrY,gyrZ`, with the time in
 milliseconds (0, 20, 40, and so on), acceleration in m/s2, and rotation in
 degrees per second. The book's model uses the three acceleration columns; the
