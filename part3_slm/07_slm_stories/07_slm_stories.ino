@@ -425,7 +425,8 @@ static void drawStory() {
   }
   canvas.setTextSize(1);
   canvas.setTextColor(curFinished ? TFT_GREEN : TFT_YELLOW, TFT_BLACK);
-  snprintf(hdr, sizeof(hdr), "%s %d tokens  %.1f tok/s", curFinished ? "done" : "...", curTokens, lastTokPerSec);
+  if (curFinished && curTokens == 0) snprintf(hdr, sizeof(hdr), "USR1: tell the story");
+  else snprintf(hdr, sizeof(hdr), "%s %d tokens  %.1f tok/s", curFinished ? "done" : "...", curTokens, lastTokPerSec);
   canvas.setCursor(4, 306);
   canvas.print(hdr);
   canvas.pushSprite(0, 0);
@@ -568,7 +569,9 @@ void loop() {
   bool b1 = pressed(BTN_USR1), b2 = pressed(BTN_USR2);
   if (b2 && !wasPressed2) {
     promptIndex = (promptIndex + 1) % NUM_PROMPTS;
-    storyLen = 0; story[0] = 0;
+    // Show the new beginning in big letters, where the story will appear.
+    snprintf(story, sizeof(story), "%s", PROMPTS[promptIndex][0] ? PROMPTS[promptIndex] : "(no beginning: the model makes it up)");
+    storyLen = strlen(story);
     followEnd = true;
     showStory(true, 0);
   }
