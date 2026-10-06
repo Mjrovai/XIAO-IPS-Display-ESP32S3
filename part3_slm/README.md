@@ -706,11 +706,16 @@ either way. So the check does not look at the text. `tools/slm_reference.py` run
 model in Python (numpy), written separately, with greedy decoding (always the highest
 score). The command `g ` on the board does the same.
 
-For the empty prompt, the first 64 tokens were **the same on the board and in numpy,
-all 64 of 64**. This checks the whole path (file format, tokenizer, attention, the cache,
-and the feed-forward block) for that prompt. We did not run other prompts through the
-check. The sampling (temperature and top-p) is not checked by it, since greedy decoding
-does not use it.
+For each of the five beginnings of the sketch (none, "Once upon a time", "One day, a
+little girl", "Tom and Lily", and "The big dog"), the first 64 tokens were **the same on the
+board and in numpy, 64 of 64 in every case**. This checks the whole path (file format,
+tokenizer, attention, the cache, and the feed-forward block) for those five prompts. It does
+not check the sampling (temperature and top-p), since greedy decoding does not use it, and
+it does not look past 64 tokens.
+
+Greedy decoding also shows a known weakness of small models: with "The big dog" it falls
+into a loop and repeats "He liked to play with his ball." This is why the sketch draws the
+words at random instead.
 
 ```bash
 python3 tools/slm_reference.py ~/datasets/slm/stories260K.bin ~/datasets/slm/tok512.bin "" --steps 64
