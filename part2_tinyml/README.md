@@ -11,8 +11,10 @@ these boards have no camera.
 Studio and runs on the board, it classifies recorded clips correctly there, and a first
 live test with a voice shows it detecting YES and NO. A cued test (beeps tell the speaker
 which word to say) gave, with few cues: YES 7 of 11, NO 9 of 9, other words 8 of 10 correct.
-Motion: the data logger is written and
-tested; the recording and the Studio steps are still to do.
+Motion: 48 samples were recorded with the logger, a model
+was trained in the Studio (98.48% on its test set), and it runs on the board; a first live
+test with the board in hand classified each of the four movements correctly. A blind test
+is still to do.
 
 ## What is different from the book
 
@@ -532,30 +534,340 @@ void loop() {
 ```
 <!-- /sketch -->
 
-### Next steps for motion (in the Edge Impulse Studio)
+### The motion dataset
 
-These follow the book's chapter. They need an Edge Impulse account, so they are
-done by hand in the Studio, not by the sketches.
+We recorded 12 samples of 10 seconds for each class (48 files, 500 rows each) with test
+01, and checked them with `tools/motion_dataset_check.py` before uploading. Every file
+has 500 rows and a step of exactly 20.00 ms. The acceleration is near 1 g in every
+class (mean 9.75 to 10.01 m/s2), and the classes differ in how much it varies:
 
-1. **Record data.** About 12 samples of 10 seconds for each of the four classes
-   (around two minutes per class).
-2. **Create a project** in the Studio, and upload the CSV files with
-   *Data acquisition, Upload data*, inferring the label from the file name. The
-   first upload needs the
-   [CSV Wizard](https://docs.edgeimpulse.com/docs/edge-impulse-studio/data-acquisition/csv-wizard)
-   to say which column is the timestamp and which three columns are the sensor
-   axes (accX, accY, accZ).
-3. **Split** the data into training and test sets (the book keeps about 20%
-   for testing).
-4. **Impulse** (the book's settings): window 2000 ms, stride 200 ms, one
-   *Spectral Analysis* block (the book reports 63 features for a 32-point FFT),
-   a *Classifier* (a dense network with hidden layers of 20 and 10 neurons,
-   learning rate 0.005, 30 epochs, 20% validation), and an *Anomaly detection*
-   block (K-means with 32 clusters).
-5. **Test and deploy** as an Arduino library, quantized (int8).
-6. **Inference sketch** on the board, showing the class and the anomaly score on
-   the display. It needs the exact library name that the Studio generates, so it
-   is written after step 5.
+| Class | Std of the acceleration magnitude (m/s2) | What moves |
+|---|---|---|
+| idle | 0.03 | nothing |
+| terrestrial | 0.72 | small vibration, mostly one horizontal axis |
+| lift | 2.60 | mostly the vertical axis (z) |
+| maritime | 2.91 | all three axes, gyroscope 70 to 135 deg/s |
+
+`lift` and `maritime` have a similar total variation, but they differ by axis, which
+is what the Spectral Analysis block sees. Three `idle` files (3, 5, and 11) include a
+bump, probably the hand settling after START or reaching for the board; we kept them,
+because a real idle board is also touched now and then.
+
+![The dataset in the Studio: 8 minutes of data, 83% for training and 17% for testing](../images/studio_motion_1_dataset.jpg)
+
+### The motion model
+
+The model was trained in the Edge Impulse Studio by the author, in a project named
+"XIAO IPS Display - Motion". The library it generated is not in this repository. What differs from the book:
+
+- **Six axes, not three.** The book uses the three acceleration axes; here accX, accY,
+  accZ, gyrX, gyrY, and gyrZ all go in, because the logger records them.
+- **FFT length 16**, not 32, so each window gives **78 features** (13 per axis), not 63.
+- **Learning rate 0.0005** and 30 training cycles, with the book's two dense layers
+  (20 and 10 neurons). An anomaly block (K-means, 32 clusters) is added, as in the book.
+
+The window is 2,000 ms with a 200 ms stride, at 50 Hz: 100 samples of 6 axes (600
+values). The 40 training files make 1,640 windows (6 minutes 40 seconds); 8 files
+(17%) are kept for testing.
+
+![The impulse: six axes, 2,000 ms window, Spectral Analysis, a classifier with four outputs, and an anomaly detector](../images/studio_motion_2_impulse.jpg)
+
+![The Spectral Analysis block: FFT length 16, with the estimate of 47 ms and 3 KB on the right](../images/studio_motion_3_spectral.jpg)
+
+![The feature explorer: the four classes form separate groups](../images/studio_motion_4_features.jpg)
+
+![The classifier (left) and its validation result (right): 100% accuracy, estimates of 1 ms, 1.4 KB of RAM, and 15.9 KB of flash](../images/studio_motion_5_classifier.jpg)
+
+![The anomaly detector, using two suggested axes](../images/studio_motion_6_anomaly.jpg)
+
+![Model testing: 98.48% on the test set; 6.1% of `maritime` is flagged as an anomaly](../images/studio_motion_7_testing.jpg)
+
+**What the Studio reports.** The validation accuracy is 100%, with a loss of 0.00. Do not
+read much into it: windows that overlap by 90% can land in both the training and the
+validation set, so the network is partly graded on data it has seen. The test set is
+independent (whole files the model never saw) and gives **98.48%**: `idle`, `lift`, and
+`terrestrial` at 100%, and `maritime` at 93.9%, with the other 6.1% flagged as an
+anomaly. It is only 8 files, so one more or one less changes the figure by a lot. The
+five features the Studio ranks highest are gyrY RMS, accZ RMS, accY spectral power in
+the 1.56 to 4.69 Hz band, accZ spectral power in the 4.69 to 7.81 Hz band, and accZ
+spectral skewness. The classifier asks for only 3,020 bytes of working memory.
+
+### Test 06: motion classification on the board
+
+Runs the model on the IMU, continuously. The sampler from test 01 fills a ring buffer
+at 50 Hz and, every 500 ms, the last 2 seconds go to the classifier. The screen shows
+the winning class, a bar for each class, the anomaly score, and the processing times.
+
+The sketch sets the same ranges as the logger (+/-2 g, 245 dps), and feeds the six
+axes in the training order and units (m/s2 and deg/s). If the units or the order were
+different, the model would answer wrongly without any error.
+
+**Checked against the Studio data.** The sketch has a replay mode: `tools/motion_replay.py`
+sends windows from the CSV files over USB and the board answers with its scores. All
+**432 windows** (every file, one window per second) were classified correctly, 108 per
+class. This is not a test of the model, since these are the same files used to train it;
+it shows that the board computes what the Studio computed, with the right order and
+units. We ran it twice, with ESP-NN off and on, and the scores were **identical** (the
+largest difference was 0.0): the fault we found in the keyword model (see
+[the ESP-NN section](#a-problem-we-found-the-esp-nn-kernels-give-wrong-answers)) does
+not appear here, so this sketch needs no `build_opt.h`. This holds for this model, with
+core 3.3.12.
+
+**Measured.** The sketch uses 603 KB of flash (28%) and 33 KB of RAM (10%), with PSRAM
+disabled. The signal processing takes 5 to 6 ms and the network less than 1 ms (the
+counter has a resolution of 1 ms), against the Studio's estimates of 47 ms and 1 ms.
+
+**Live.** The author held the board and moved it as each class would be moved. It answered
+correctly in all four cases photographed:
+
+![The live sketch: idle 96%, lift 88%, terrestrial 93%, and maritime 100%](../images/motion_live_states.jpg)
+
+*From left to right: the board at rest (IDLE, 96%), then moved as the classes lift
+(LIFT, 88%), terrestrial (TERRESTRIAL, 93%), and maritime (MARITIME, 100%) would move
+it. The anomaly score read -0.19, -0.02, 0.30, and 0.03.* The score is higher the
+less a window looks like the training data; 0.30 for the terrestrial movement is the
+largest of the four, and that class is the most variable in our data.
+
+This is one photographed attempt per class, by hand, not a blind test: it shows that the
+model works live, not how often it is right. Compare with how we measured the keyword
+model, with beeps as cues and known answers.
+
+<!-- sketch: part2_tinyml/06_motion_inference/06_motion_inference.ino -->
+**Sketch:** [`part2_tinyml/06_motion_inference/06_motion_inference.ino`](https://github.com/Mjrovai/XIAO-IPS-Display-ESP32S3/blob/main/part2_tinyml/06_motion_inference/06_motion_inference.ino)
+
+```cpp
+/*
+  Part 2, Test 06 - Motion classification on the board (Edge Impulse model)
+
+  Runs the "XIAO IPS Display - Motion" model (classes idle, lift, maritime,
+  terrestrial) on the IMU. The sampler from test 01 fills a ring buffer at exactly
+  50 Hz; every 500 ms the last 2 seconds (100 samples of 6 axes) go to the
+  classifier. The six axes are in the order the model was trained with: accX, accY,
+  accZ in m/s2, then gyrX, gyrY, gyrZ in degrees per second, the same units the
+  logger wrote to the CSV files.
+
+  Screen: the winning class, a bar for each class, the anomaly score, and the
+  processing times. Serial: one line per classification.
+
+  Replay for checking: send the four bytes "WIND" followed by 600 float32 values
+  (little endian, one window, six values per sample) and the board answers with one
+  "RESULT" line instead of using the IMU. tools/motion_replay.py does this.
+
+  Unlike test 04, this sketch needs no build_opt.h: the network is two small dense layers,
+  and with ESP-NN on and off the board gave identical scores on 432 replayed windows.
+
+  The library name below is the one Edge Impulse generated for the project. If you
+  train your own, change the include to your library's header.
+*/
+
+#include <Arduino.h>
+#include <Wire.h>
+#include <LSM6DS3.h>
+#include <XIAO_IPS_Display_-_Motion_inferencing.h>
+#include <Seeed_GFX.h>
+#include "board/boards/XIAO_LCD_Board.h"
+#include "driver/tft/Driver_JD9853A.h"
+#include "panel/Panel_TFT.h"
+
+static constexpr int SAMPLE_HZ = EI_CLASSIFIER_FREQUENCY;               // 50
+static constexpr int WINDOW = EI_CLASSIFIER_RAW_SAMPLE_COUNT;           // 100 samples
+static constexpr int AXES = EI_CLASSIFIER_RAW_SAMPLES_PER_FRAME;        // 6
+static constexpr uint32_t RUN_EVERY_MS = 500;
+
+static constexpr int8_t LCD_RST_PIN = 13;
+static constexpr int8_t LCD_BL_PIN = 12;
+
+Seeed_GFX display;
+Seeed_Sprite canvas;
+LSM6DS3 imu(I2C_MODE, 0x6A);
+
+// ---- Sampler: a separate task keeps the 50 Hz clock steady -----------------------
+static float ring[WINDOW][AXES];
+static volatile uint32_t head = 0;  // number of samples written so far
+static portMUX_TYPE ringMux = portMUX_INITIALIZER_UNLOCKED;
+
+static void samplerTask(void *) {
+  TickType_t lastWake = xTaskGetTickCount();
+  const float G = 9.80665f;
+  for (;;) {
+    vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(1000 / SAMPLE_HZ));
+    float s[AXES] = {imu.readFloatAccelX() * G, imu.readFloatAccelY() * G, imu.readFloatAccelZ() * G,
+                     imu.readFloatGyroX(),      imu.readFloatGyroY(),      imu.readFloatGyroZ()};
+    portENTER_CRITICAL(&ringMux);
+    memcpy(ring[head % WINDOW], s, sizeof(s));
+    head = head + 1;
+    portEXIT_CRITICAL(&ringMux);
+  }
+}
+
+// Copy the last WINDOW samples, oldest first, into a flat buffer (interleaved axes).
+static void snapshot(float *out) {
+  portENTER_CRITICAL(&ringMux);
+  uint32_t h = head;
+  for (int i = 0; i < WINDOW; i++) memcpy(out + i * AXES, ring[(h + i) % WINDOW], AXES * sizeof(float));
+  portEXIT_CRITICAL(&ringMux);
+}
+
+// ---- Classification ----------------------------------------------------------------
+static float features[WINDOW * AXES];
+static ei_impulse_result_t result;
+static bool haveResult = false;
+static uint32_t dspMs = 0, nnMs = 0, runs = 0;
+
+static int getData(size_t offset, size_t length, float *out) {
+  memcpy(out, features + offset, length * sizeof(float));
+  return 0;
+}
+
+static bool classify() {
+  signal_t signal;
+  signal.total_length = WINDOW * AXES;
+  signal.get_data = &getData;
+  EI_IMPULSE_ERROR err = run_classifier(&signal, &result, false);
+  if (err != EI_IMPULSE_OK) { Serial.printf("classifier error %d\n", (int)err); return false; }
+  dspMs = result.timing.dsp;
+  nnMs = result.timing.classification;
+  haveResult = true;
+  return true;
+}
+
+static uint16_t colorOf(const char *c) {
+  if (!strcmp(c, "idle")) return TFT_LIGHTGREY;
+  if (!strcmp(c, "lift")) return TFT_GREEN;
+  if (!strcmp(c, "maritime")) return TFT_CYAN;
+  return TFT_ORANGE;  // terrestrial
+}
+
+// ---- Screen ------------------------------------------------------------------------
+static void draw() {
+  canvas.fillScreen(TFT_BLACK);
+  canvas.setTextSize(2);
+  canvas.setTextColor(TFT_CYAN, TFT_BLACK);
+  canvas.drawCentreString("MOTION", 86, 4, 1);
+  char t[40];
+  int best = 0;
+  if (haveResult)
+    for (int i = 1; i < EI_CLASSIFIER_LABEL_COUNT; i++)
+      if (result.classification[i].value > result.classification[best].value) best = i;
+  if (!haveResult) {
+    canvas.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    canvas.drawCentreString("filling", 86, 56, 1);
+  } else {
+    // "terrestrial" is 11 characters: size 2 fits, size 3 would not.
+    canvas.setTextSize(2);
+    canvas.setTextColor(colorOf(result.classification[best].label), TFT_BLACK);
+    char name[16];
+    strncpy(name, result.classification[best].label, sizeof(name) - 1);
+    name[sizeof(name) - 1] = 0;
+    for (char *c = name; *c; c++) *c = toupper(*c);
+    canvas.drawCentreString(name, 86, 50, 1);
+  }
+  const char *order[] = {"idle", "lift", "maritime", "terrestrial"};
+  for (int r = 0; r < 4; r++) {
+    int y = 100 + r * 40;
+    float v = 0;
+    for (int i = 0; haveResult && i < EI_CLASSIFIER_LABEL_COUNT; i++)
+      if (!strcmp(result.classification[i].label, order[r])) v = result.classification[i].value;
+    canvas.setTextSize(1);
+    canvas.setTextColor(colorOf(order[r]), TFT_BLACK);
+    canvas.setCursor(4, y);
+    canvas.print(order[r]);
+    canvas.drawRect(4, y + 12, 164, 14, TFT_DARKGREY);
+    canvas.fillRect(5, y + 13, (int)(162 * v), 12, colorOf(order[r]));
+    canvas.setTextColor(TFT_WHITE, TFT_BLACK);
+    snprintf(t, sizeof(t), "%.0f%%", v * 100);
+    canvas.setCursor(140, y);
+    canvas.print(t);
+  }
+  canvas.setTextSize(1);
+  canvas.setTextColor(TFT_WHITE, TFT_BLACK);
+  snprintf(t, sizeof(t), "anomaly %.2f", haveResult ? result.anomaly : 0.0f);
+  canvas.setCursor(4, 268);
+  canvas.print(t);
+  snprintf(t, sizeof(t), "dsp %lu ms  nn %lu ms", (unsigned long)dspMs, (unsigned long)nnMs);
+  canvas.setCursor(4, 282);
+  canvas.print(t);
+  canvas.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  snprintf(t, sizeof(t), "runs %lu", (unsigned long)runs);
+  canvas.setCursor(4, 296);
+  canvas.print(t);
+  canvas.pushSprite(0, 0);
+}
+
+// ---- Replay over USB serial ---------------------------------------------------------
+static void handleReplay() {
+  static uint8_t state = 0;  // how many bytes of "WIND" have matched
+  static const char tag[] = "WIND";
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == tag[state]) { state++; } else { state = (c == tag[0]) ? 1 : 0; }
+    if (state == 4) {
+      state = 0;
+      size_t need = sizeof(features), got = 0;
+      uint32_t t0 = millis();
+      uint8_t *p = (uint8_t *)features;
+      while (got < need && millis() - t0 < 3000) {
+        int n = Serial.readBytes(p + got, need - got);
+        if (n > 0) got += n;
+      }
+      if (got < need) { Serial.println("REPLAY timeout"); return; }
+      if (!classify()) return;
+      Serial.print("RESULT");
+      for (int i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
+        Serial.printf(" %s %.4f", result.classification[i].label, result.classification[i].value);
+      Serial.printf(" anomaly %.3f dsp %lu nn %lu\n", result.anomaly, (unsigned long)dspMs, (unsigned long)nnMs);
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  Serial.setTxTimeoutMs(0);
+  Serial.setRxBufferSize(4096);
+  delay(800);
+  if (!display.begin<Board_XIAO_1inch47_Touch_Display<LCD_RST_PIN, LCD_BL_PIN>,
+                     Config_Seeed_1inch47_Touch_JD9853A>()) { Serial.println(display.lastResult().message); return; }
+  canvas.createSprite(display, 172, 320);
+  Serial.printf("model: %s, %d classes, window %d samples x %d axes at %d Hz\n", EI_CLASSIFIER_PROJECT_NAME,
+                EI_CLASSIFIER_LABEL_COUNT, WINDOW, AXES, SAMPLE_HZ);
+  // Same ranges as the logger, so the model sees the units it was trained on.
+  imu.settings.accelRange = 2;
+  imu.settings.gyroRange = 245;
+  if (imu.begin() != 0) { Serial.println("IMU init FAILED"); return; }
+  run_classifier_init();
+  xTaskCreatePinnedToCore(samplerTask, "imu", 4096, nullptr, configMAX_PRIORITIES - 2, nullptr, 0);
+  draw();
+}
+
+void loop() {
+  static uint32_t lastRun = 0;
+  handleReplay();
+  if (millis() - lastRun < RUN_EVERY_MS) { delay(2); return; }
+  lastRun = millis();
+  if (head < (uint32_t)WINDOW) { draw(); return; }  // wait for the first full window
+  snapshot(features);
+  if (classify()) {
+    runs++;
+    Serial.print("SCORES");
+    for (int i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
+      Serial.printf(" %s %.2f", result.classification[i].label, result.classification[i].value);
+    Serial.printf(" anomaly %.2f\n", result.anomaly);
+  }
+  draw();
+}
+```
+<!-- /sketch -->
+
+### Next steps for motion
+
+1. **A blind test with ground truth**, as for the keywords: cue the movement, record what
+   the board said, and compare. A new recording with a different person or a different
+   container would also say how much the model depends on how we moved the board.
+2. **More data for `maritime` and `idle`**, the classes where the Studio's test and our
+   files show the most spread. More samples would also make the test set bigger than 8.
+3. **Try the accelerometer only**, as in the book, and compare with the six axes.
+4. **Use the anomaly score**: choose a threshold on a new recording and show an alert
+   on the screen.
 
 ## Keyword spotting
 
@@ -1485,17 +1797,19 @@ board: in test 04 we measured about 17 ms for the MFCC and about 15 ms for the
 network per slice, so trust the board's numbers. The screenshots below are of the
 public project.
 
-![The impulse: 1,000 ms windows, 16 kHz audio, MFCC, a classifier with four outputs](../images/studio_1_impulse.jpg)
+![The dataset in the Studio: 1 hour 43 minutes of 1-second clips, 79% for training and 21% for testing](../images/studio_kws_1_dataset.jpg)
 
-![The MFCC block: 13 coefficients, 20 ms frames, 32 filters, FFT 256, normalization window 101](../images/studio_2_mfcc.jpg)
+![The impulse: 1,000 ms windows, 16 kHz audio, MFCC, a classifier with four outputs](../images/studio_kws_2_impulse.jpg)
 
-![The classifier: two 1D convolution layers (8 and 16 filters) with dropout, int8, validation confusion matrix](../images/studio_3_classifier.jpg)
+![The MFCC block: 13 coefficients, 20 ms frames, 32 filters, FFT 256, normalization window 101, with the estimate of 361 ms and 15 KB](../images/studio_kws_3_mfcc.jpg)
 
-![The Studio's estimate for the MFCC block: 361 ms and 15 KB of RAM](../images/studio_5_mfcc_performance.jpg)
+![The features of the 4,932 training windows, and the same estimate for the MFCC block](../images/studio_kws_4_features.jpg)
 
-![The Studio's estimate for the network: 5 ms, 12.6 KB of RAM, 46.0 KB of flash](../images/studio_6_classifier_performance.jpg)
+![The classifier (left): two 1D convolution layers (8 and 16 filters) with dropout; its validation result (right) and the Studio's estimate for the network: 5 ms, 12.6 KB of RAM, 46.0 KB of flash](../images/studio_kws_5_classifier.jpg)
 
-![Model testing: 87.16% on the test set; the `unknown` class is the weakest](../images/studio_4_testing.jpg)
+![The training graphs: accuracy and loss over the 100 training cycles](../images/studio_kws_6_training_graphs.jpg)
+
+![Model testing: 87.16% on the test set; the `unknown` class is the weakest](../images/studio_kws_7_testing.jpg)
 
 ### Test 04: keyword spotting on the board
 
