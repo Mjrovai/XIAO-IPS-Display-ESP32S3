@@ -775,7 +775,7 @@ The author's VerneBot project trained two character-level models on ten Jules Ve
 | Unit of text | a token (one of 512 pieces) | a character (one of 123) | a character (one of 123) |
 | Size as 32-bit floats | 1.06 MB | 16.4 MB | 16.0 to 16.2 MB |
 
-In 32-bit floats the VerneBot models do not fit in the 8 MB of PSRAM, and in 16 bits (8.2 MB) they do not either. As **8-bit integers (about 4 MB)** they do. Both tests below use that.
+In 32-bit floats the VerneBot models do not fit in the 8 MB of PSRAM, and in 16 bits (8.2 MB) they do not either. As **8-bit integers (about 4 MB)** they do. The tests below use that.
 
 ### Test 08: how fast would they run?
 
