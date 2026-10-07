@@ -763,6 +763,10 @@ very simple stories, which is why such a small model can write anything readable
 
 ## Larger models: the VerneBot character models
 
+![Cartoon illustration of a robot with a long beard, in the style of Jules Verne's time, writing with a quill in a library, with a VerneBot board at its side](../images/verne_robot_cartoon.jpg)
+
+*A robot writes like Jules Verne, with a board at its side. This illustration was generated with an AI image model; the text on the screen of the board is garbled and does not match the real screen.*
+
 The author's VerneBot project trained two character-level models on ten Jules Verne novels (5.8 million characters, 123 different characters): a **GRU network** and a **Transformer**, with about 4 million parameters each. They are described in the chapter on text generation of the book *Edge AI Engineering* (Raspberry Pi), and the code and a live demo are in [github.com/Mjrovai/Jules_Verne](https://github.com/Mjrovai/Jules_Verne) and [mjrovai.github.io/Jules_Verne](https://mjrovai.github.io/Jules_Verne/). They are fifteen times bigger than stories260K. Would they run on this board?
 
 | | stories260K | VerneBot GRU | VerneBot Transformer |
@@ -1085,7 +1089,7 @@ The GRU is the easier of the two to run: its memory is one vector of 1,024 numbe
 
 *The model on one page. A character becomes 256 numbers, the GRU layer mixes them with its state (1,024 numbers) to make a new state, and the dense layer turns the new state into one score for each of the 123 characters. The recurrent weights, which carry the state from one step to the next, hold three quarters of all the weights.*
 
-**The weights file.** `tools/verne_gru.py export` reads the project's float16 export (`rnn.bin` and `manifest.json`) and writes `verne_rnn_int8.bin`, 4,234,520 bytes: a header, the 123 characters of the vocabulary, the embedding and the biases as 32-bit floats, and the three matrices (the input weights of the three gates, the recurrent weights of the three gates, and the dense layer) as 8-bit integers with **one scale per row**. The file is not in this repository. Put it in the folder `/slm` of the card, next to the story files.
+**The weights file.** `tools/verne_gru.py export` reads the project's float16 export (`rnn.bin` and `manifest.json`) and writes `verne_rnn_int8.bin`, 4,234,520 bytes: a header, the 123 characters of the vocabulary, the embedding and the biases as 32-bit floats, and the three matrices (the input weights of the three gates, the recurrent weights of the three gates, and the dense layer) as 8-bit integers with **one scale per row**. The file is not in this repository, but it is attached to the [v1.1 release of the book](https://github.com/Mjrovai/TinyML_Made_Easy_XIAO_ESP32S3_ebook/releases/tag/v1.1) (`verne_rnn_int8.bin`, SHA-256 `68dcd480d55fc8234ec8aed7a092eb3256697e2219a1813f0367922822bda8ca`), and you can make it yourself with the command above. Put it in the folder `/slm` of the card, next to the story files.
 
 **How the text is written.** The seed goes through the network one character at a time, from a zero state, and the last scores are those of the first new character. Then the loop begins: choose a character from the scores, show it, and feed it back in.
 
@@ -1100,11 +1104,11 @@ The GRU is the easier of the two to run: its memory is one vector of 1,024 numbe
 - **The board matches the reference.** Greedy writing of the first 64 characters, on four seeds ("THE FLYING SUBMARINE", "Captain Nemo", "The balloon rose", and "It was a dark night"), gave **the same 64 characters on the board and in numpy with 8-bit weights, 64 of 64 in every case**. The command `t` prints the eight most likely characters after a seed; after "THE FLYING SUBMARINE" they are the same as in the reference.
 - **Speed.** 4.61 characters per second in greedy writing, the same as the 4.62 of the test with random weights. With the screen being redrawn while it writes, the screen showed 4.0. After loading, 3.88 MB of PSRAM are free.
 
-![The VerneBot screens: the start screen, and a text being written from the seed "Captain Nemo", 145 characters at 4.0 characters per second](../images/verne_rnn_screens.jpg)
+![The VerneBot screens: the start screen, and a text being written from the seed "Captain Nemo", 139 characters at 4.0 characters per second](../images/verne_rnn_screens.jpg)
 
 *Left: the start screen. Right: a text being written.* A text written by the board from the seed "Captain Nemo", as it appeared on the screen:
 
-> Captain Nemo, to be done on the sands of the globe. Its dispatch have been scarcely perished. Now at the conversation of the guns that it was only to descend
+> Captain Nemo was stopped up, but a brave capital of twenty-eight days, and set out a few miles from the European or Scotland with blows of the orders o
 
 It is made of words and phrases of the novels, and it reads like English, but the sentences do not follow from each other. That is what a model with four million parameters that reads one character at a time does. At 4 to 5 characters per second, a paragraph of 500 characters takes about two minutes, and the letters appear one by one on the screen.
 
