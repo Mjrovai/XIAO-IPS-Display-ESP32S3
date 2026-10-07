@@ -2256,7 +2256,7 @@ the code, and what we did not measure.
 |---|---|---|
 | [Part 2, keyword spotting](part2_tinyml/README.md#keyword-spotting) | Recognizes YES and NO on the microphone, with an Edge Impulse model | Offline, on the author's own test clips: 85.3% correct. Live, with beep cues: YES 7 of 11, NO 9 of 9, other words 8 of 10 (few cues, wide intervals). Needs ESP-NN turned off on core 3.3.12 |
 | [Part 2, motion](part2_tinyml/README.md#motion-classification) | Classifies four movements on the IMU, with an Edge Impulse model | 98.48% on the Studio's test set (8 files); all four movements right in one live trial each; not a blind test |
-| [Part 3, a tiny language model](part3_slm/README.md) | A 260,000-parameter model writes short stories on the board | 12.5 to 30 tokens per second; the first 64 tokens match an independent Python implementation for five prompts |
+| [Part 3, a tiny language model](part3_slm/README.md) | A 260,000-parameter model writes short stories on the board | 12.5 to 30 tokens per second; the first 64 tokens match an independent Python implementation for five prompts. A 4-million-parameter character GRU also runs, at 4.6 characters per second |
 
 ## What comes next
 
@@ -2315,6 +2315,7 @@ tools/
   motion_dataset_check.py  checks the motion CSV files from the IMU logger (rows, timing, per-class motion)
   motion_replay.py  sends windows from the motion CSV files to the board and scores its answers
   slm_reference.py  runs stories260K in numpy, to check the sketch token by token
+  verne_gru.py      the VerneBot GRU in numpy: checks it, exports its 8-bit weights for the board, and checks 8 bits against float16
   kws_clip_review.py  reviews your own keyword clips and flags suspicious ones
   kws_prepare_upload.py  gathers your clips into train/test/review folders
   kws_replay.py       sends clips to the board (or a Mac build) and scores the answers

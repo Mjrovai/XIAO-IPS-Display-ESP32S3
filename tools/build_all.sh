@@ -1,5 +1,5 @@
 #!/bin/sh
-# Compile every sketch in part1_bringup (and extras) and part2_tinyml with the patched library.
+# Compile every sketch in part1_bringup (and extras), part2_tinyml, and part3_slm with the patched library.
 # The Part 2 sketches that need your Edge Impulse model (04, 05, and 06) are built only if the
 # unzipped library is in libs/ei-kws/XIAO_IPS_Display_-_KWS_inferencing; otherwise they are skipped.
 # Usage: tools/build_all.sh            compile only
@@ -11,7 +11,7 @@ EI_LIB_MOTION=libs/ei-motion/XIAO_IPS_Display_-_Motion_inferencing
 [ -d libs/Seeed_GFX2_fast ] || ./tools/make_fast_lib.sh
 fail=0
 log=$(mktemp)
-for d in part1_bringup/[0-9]*/ part1_bringup/extras/*/ part2_tinyml/[0-9]*/; do
+for d in part1_bringup/[0-9]*/ part1_bringup/extras/*/ part2_tinyml/[0-9]*/ part3_slm/[0-9]*/; do
   name=$(basename "$d")
   extra=""
   case "$name" in
