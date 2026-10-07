@@ -254,7 +254,7 @@ static void drawStory() {
   canvas.fillScreen(TFT_BLACK);
   canvas.setTextSize(1);
   canvas.setTextColor(TFT_CYAN, TFT_BLACK);
-  canvas.setCursor(4, 4);
+  canvas.setCursor(10, 4);   // a little to the right: the rounded corner of the screen hides the first letter
   canvas.print("VerneBot GRU, 4M weights");
   canvas.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   char hdr[48];

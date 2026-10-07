@@ -1081,7 +1081,17 @@ void loop() {
 
 The GRU is the easier of the two to run: its memory is one vector of 1,024 numbers, it can write text of any length, and each character costs the same. The sketch reads the real, trained weights from the card and writes text.
 
+![The VerneBot GRU: a character goes through the embedding table, the GRU layer, and the dense layer; below, the GRU cell enlarged, with its two gates and its candidate, and where the 4,095,867 weights are](../images/verne_gru_model_diagram.png)
+
+*The model on one page. A character becomes 256 numbers, the GRU layer mixes them with its state (1,024 numbers) to make a new state, and the dense layer turns the new state into one score for each of the 123 characters. The recurrent weights, which carry the state from one step to the next, hold three quarters of all the weights.*
+
 **The weights file.** `tools/verne_gru.py export` reads the project's float16 export (`rnn.bin` and `manifest.json`) and writes `verne_rnn_int8.bin`, 4,234,520 bytes: a header, the 123 characters of the vocabulary, the embedding and the biases as 32-bit floats, and the three matrices (the input weights of the three gates, the recurrent weights of the three gates, and the dense layer) as 8-bit integers with **one scale per row**. The file is not in this repository. Put it in the folder `/slm` of the card, next to the story files.
+
+**How the text is written.** The seed goes through the network one character at a time, from a zero state, and the last scores are those of the first new character. Then the loop begins: choose a character from the scores, show it, and feed it back in.
+
+![How the board writes a text with the GRU: the seed is turned into numbers and read once, then a loop of one step, a choice of the next character, and showing it, with the new character fed back in](../images/verne_gru_generation_diagram.png)
+
+*The loop that writes a text. The only thing that carries the past is the state of the GRU. There is no cache that grows with the text, unlike a Transformer, so the cost and the memory of each character are the same at the beginning and at the end.*
 
 **What we checked:**
 
@@ -1090,13 +1100,13 @@ The GRU is the easier of the two to run: its memory is one vector of 1,024 numbe
 - **The board matches the reference.** Greedy writing of the first 64 characters, on four seeds ("THE FLYING SUBMARINE", "Captain Nemo", "The balloon rose", and "It was a dark night"), gave **the same 64 characters on the board and in numpy with 8-bit weights, 64 of 64 in every case**. The command `t` prints the eight most likely characters after a seed; after "THE FLYING SUBMARINE" they are the same as in the reference.
 - **Speed.** 4.61 characters per second in greedy writing, the same as the 4.62 of the test with random weights. With the screen being redrawn while it writes, the screen showed 4.0. After loading, 3.88 MB of PSRAM are free.
 
-![The VerneBot screens: the start screen, and a text being written from the seed "Captain Nemo", 149 characters at 4.0 characters per second](../images/verne_rnn_screens.jpg)
+![The VerneBot screens: the start screen, and a text being written from the seed "Captain Nemo", 145 characters at 4.0 characters per second](../images/verne_rnn_screens.jpg)
 
-*Left: the start screen. Right: a text being written (the title of this screen was shortened afterward, because it was cut at the edge).* A text written by the board from the seed "Captain Nemo", as it appeared on the screen:
+*Left: the start screen. Right: a text being written.* A text written by the board from the seed "Captain Nemo", as it appeared on the screen:
 
-> Captain Nemo remained at a single speed. I at low tide, he said, "I will take at least us to put our revolution with the intention of the portions of the first n
+> Captain Nemo, to be done on the sands of the globe. Its dispatch have been scarcely perished. Now at the conversation of the guns that it was only to descend
 
-It is made of words and phrases of the novels, and the sentences are fine one at a time, but they do not follow from each other. That is what a model with four million parameters that reads one character at a time does. At 4 to 5 characters per second, a paragraph of 500 characters takes about two minutes, and the letters appear one by one on the screen.
+It is made of words and phrases of the novels, and it reads like English, but the sentences do not follow from each other. That is what a model with four million parameters that reads one character at a time does. At 4 to 5 characters per second, a paragraph of 500 characters takes about two minutes, and the letters appear one by one on the screen.
 
 **What was not done.** The Transformer was measured with random weights (test 08) but was not ported with its trained weights. It would need its own forward pass (the parameter counts say that it uses LayerNorm and learned positions; the other details must be read from the project's code), and the same check against the reference.
 
@@ -1360,7 +1370,7 @@ static void drawStory() {
   canvas.fillScreen(TFT_BLACK);
   canvas.setTextSize(1);
   canvas.setTextColor(TFT_CYAN, TFT_BLACK);
-  canvas.setCursor(4, 4);
+  canvas.setCursor(10, 4);   // a little to the right: the rounded corner of the screen hides the first letter
   canvas.print("VerneBot GRU, 4M weights");
   canvas.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   char hdr[48];
